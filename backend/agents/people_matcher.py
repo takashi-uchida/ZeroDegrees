@@ -27,6 +27,8 @@ Candidate:
 - Bio: {person.bio}
 - Current: {person.current_situation}
 - Past challenges: {', '.join(person.past_challenges)}
+- Skills: {', '.join(person.skills)}
+- Goals: {', '.join(person.goals)}
 
 Evaluate if this person could be:
 1. Future Self (already overcame similar challenges)
@@ -37,6 +39,9 @@ Return JSON with:
 - role: one of "future_self", "comrade", "guide", or "none"
 - reasoning: 2-3 sentences explaining the match
 - score: 0-10 rating
+- evidence: 2 short bullet-style proof points grounded in the candidate profile
+- distance_label: a short label like "1 step away", "2 steps away", or "3 steps away"
+- first_question: the first practical question the user should ask this person
 
 Return only valid JSON."""
 
@@ -57,7 +62,10 @@ Return only valid JSON."""
                 current_situation=person.current_situation,
                 similarity_score=similarity,
                 reasoning=result["reasoning"],
-                role=result["role"]
+                role=result["role"],
+                evidence=result.get("evidence", []),
+                distance_label=result.get("distance_label"),
+                first_question=result.get("first_question")
             ))
     
     return matches

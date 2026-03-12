@@ -5,18 +5,21 @@ from agents.synthesizer import moderate_discussion, synthesize_final_result
 from services.people_repository import PeopleRepository
 from db.session import async_session_maker
 from typing import AsyncGenerator
-import json
+
+def status_event(step: str, label: str) -> dict:
+    return {"type": "status", "data": {"step": step, "label": label}}
 
 async def run_discovery(query: str) -> AsyncGenerator[dict, None]:
     """Run the full discovery process with streaming events"""
     
     # Step 1: Analyze context
-    yield {"type": "status", "data": "Analyzing your situation..."}
+    yield status_event("analyzing", "Analyzing your situation")
     context = await analyze_context(query)
-    yield {"type": "context", "data": context.model_dump()}
+    public_context = context.model_dump(exclude={"embedding"})
+    yield {"type": "context", "data": public_context}
     
     # Step 2: Find candidates
-    yield {"type": "status", "data": "Searching for potential matches..."}
+    yield status_event("searching", "Searching for relevant people")
     async with async_session_maker() as session:
         repo = PeopleRepository(session)
         candidates = await repo.find_similar(context.embedding, limit=10)
@@ -29,7 +32,7 @@ async def run_discovery(query: str) -> AsyncGenerator[dict, None]:
     }}
     
     # Step 3: Evaluate candidates
-    yield {"type": "status", "data": "Evaluating candidates..."}
+    yield status_event("matching", "Matching your Future Self, Comrade, and Guide")
     matches = await evaluate_candidates(context, candidates)
     if len(matches) < 3:
         used_ids = {str(match.person_id) for match in matches}
@@ -44,6 +47,12 @@ async def run_discovery(query: str) -> AsyncGenerator[dict, None]:
                 similarity_score=similarity,
                 reasoning="Selected as a fallback based on semantic similarity when fewer than three strong role matches were available.",
                 role=None,
+                evidence=[
+                    person.current_situation,
+                    person.past_challenges[0] if person.past_challenges else person.bio,
+                ],
+                distance_label="Network reach available",
+                first_question="What would you do first if you were starting this search again?",
             ))
             used_ids.add(str(person.id))
             if len(matches) >= 3:
@@ -52,35 +61,35 @@ async def run_discovery(query: str) -> AsyncGenerator[dict, None]:
     discussion: list[ForumMessage] = []
     
     # Round 1: Initial observations
-    yield {"type": "status", "data": "Round 1: Initial analysis..."}
+    yield status_event("matching", "Comparing candidate fit")
     for match in matches[:5]:  # Top 5
         msg = ForumMessage(
             agent="Matcher",
-            content=f"Considering {match.name} as {match.role}: {match.reasoning}",
+            content=f"Considering {match.name} as {match.role or 'candidate'}: {match.reasoning}",
             round=1
         )
         discussion.append(msg)
         yield {"type": "forum", "data": msg.model_dump()}
     
     # Moderator summary
-    yield {"type": "status", "data": "Moderator summarizing..."}
+    yield status_event("matching", "Synthesizing the strongest signals")
     mod_summary = await moderate_discussion(discussion, 1)
     mod_msg = ForumMessage(agent="Moderator", content=mod_summary, round=1)
     discussion.append(mod_msg)
     yield {"type": "forum", "data": mod_msg.model_dump()}
     
     # Round 2: Refinement
-    yield {"type": "status", "data": "Round 2: Refining selections..."}
+    yield status_event("matching", "Preparing your best next connections")
     for match in matches[:3]:  # Top 3
         msg = ForumMessage(
             agent="Analyzer",
-            content=f"Strong match for {match.role}: {match.name}. Score: {match.similarity_score:.2f}",
+            content=f"Strong match for {match.role or 'candidate'}: {match.name}. Score: {match.similarity_score:.2f}",
             round=2
         )
         discussion.append(msg)
         yield {"type": "forum", "data": msg.model_dump()}
     
     # Final synthesis
-    yield {"type": "status", "data": "Finalizing recommendations..."}
-    result = await synthesize_final_result(matches, discussion)
+    yield status_event("intro_ready", "Preparing your intro and next moves")
+    result = await synthesize_final_result(context, matches, discussion)
     yield {"type": "result", "data": result.model_dump()}
