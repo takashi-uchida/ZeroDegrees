@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import ActionPlan from '@/components/ActionPlan'
+import DecisionPanel from '@/components/DecisionPanel'
 import DistanceMap from '@/components/DistanceMap'
 import IntroDrafts from '@/components/IntroDrafts'
 import ProgressRail from '@/components/ProgressRail'
@@ -131,7 +132,7 @@ export default function Home() {
 
   return (
     <main className="min-h-screen bg-[linear-gradient(180deg,#f8fafc_0%,#eef6ff_45%,#f8fafc_100%)] px-6 py-10">
-      <div className="mx-auto max-w-6xl">
+      <div className="mx-auto max-w-[1400px]">
         <header className="mb-12">
           <p className="text-xs uppercase tracking-[0.3em] text-sky-600">Distance-to-action engine</p>
           <h1 className="mt-3 text-5xl font-semibold tracking-tight text-slate-950">ZeroDegrees</h1>
@@ -169,27 +170,30 @@ export default function Home() {
         )}
 
         {result && (
-          <div className="mt-8">
-            <DistanceMap
-              currentState={{
-                summary: result.current_state_summary,
-                blocker: result.primary_blocker,
-                desiredNextStep: result.desired_next_step,
-              }}
-              people={[result.future_self, result.comrade, result.guide]}
-            />
-          </div>
-        )}
+          <div className="mt-8 grid gap-8 lg:grid-cols-[minmax(0,1.45fr)_minmax(360px,0.88fr)]">
+            <div className="order-2 lg:order-1">
+              <DistanceMap
+                currentState={{
+                  summary: result.current_state_summary,
+                  blocker: result.primary_blocker,
+                  desiredNextStep: result.desired_next_step,
+                }}
+                people={[result.future_self, result.comrade, result.guide]}
+              />
+            </div>
 
-        {result && (
-          <div className="mt-8">
-            <ActionPlan items={result.action_plan} />
-          </div>
-        )}
-
-        {result && result.intro_drafts.length > 0 && (
-          <div className="mt-8">
-            <IntroDrafts drafts={result.intro_drafts} />
+            <aside className="order-1 space-y-6 lg:order-2">
+              <DecisionPanel
+                blocker={result.primary_blocker}
+                nextStep={result.desired_next_step}
+                people={[result.future_self, result.comrade, result.guide]}
+              />
+              <ActionPlan
+                items={result.action_plan}
+                people={[result.future_self, result.comrade, result.guide]}
+              />
+              {result.intro_drafts.length > 0 && <IntroDrafts drafts={result.intro_drafts} />}
+            </aside>
           </div>
         )}
 
