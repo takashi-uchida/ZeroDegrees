@@ -46,10 +46,11 @@ const validateInput = (value: string): string | null => {
 
 const generateRefinements = (value: string): string[] => {
   const refinements: string[] = [];
-  if (value.length > 0 && !value.includes('industry')) {
+  const lowerValue = value.toLowerCase();
+  if (value.length > 0 && !/industr|field|sector|domain/.test(lowerValue)) {
     refinements.push('Consider adding your industry or field');
   }
-  if (value.length > 0 && !value.includes('stage')) {
+  if (value.length > 0 && !/stage|position|level|phase/.test(lowerValue)) {
     refinements.push('Mention your current stage or position');
   }
   if (value.length > 0 && value.length < 50) {
@@ -75,21 +76,18 @@ export default function SearchInput({
 }) {
   const [validationError, setValidationError] = useState<string | null>(null);
   const [refinements, setRefinements] = useState<string[]>([]);
-  const [destinyMessage, setDestinyMessage] = useState(DESTINY_MESSAGES[0]);
   const [messageIndex, setMessageIndex] = useState(0);
 
   useEffect(() => {
-    if (isSearching) {
-      const interval = setInterval(() => {
-        setMessageIndex((prev) => (prev + 1) % DESTINY_MESSAGES.length);
-      }, 2000);
-      return () => clearInterval(interval);
+    if (!isSearching) {
+      setMessageIndex(0);
+      return;
     }
+    const interval = setInterval(() => {
+      setMessageIndex((prev) => (prev + 1) % DESTINY_MESSAGES.length);
+    }, 2000);
+    return () => clearInterval(interval);
   }, [isSearching]);
-
-  useEffect(() => {
-    setDestinyMessage(DESTINY_MESSAGES[messageIndex]);
-  }, [messageIndex]);
 
   useEffect(() => {
     setRefinements(generateRefinements(value));
@@ -112,7 +110,7 @@ export default function SearchInput({
             <div className="absolute inset-2 animate-spin rounded-full border-4 border-slate-800 border-t-sky-300" />
             <div className="absolute inset-6 animate-pulse rounded-full bg-sky-300/30" />
           </div>
-          <p className="mt-6 text-lg font-semibold text-white">{destinyMessage}</p>
+          <p className="mt-6 text-lg font-semibold text-white">{DESTINY_MESSAGES[messageIndex]}</p>
           <p className="mt-2 text-sm text-slate-400">This may take a moment</p>
         </div>
       </section>

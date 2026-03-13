@@ -77,9 +77,19 @@ describe('SearchInput', () => {
       expect(screen.getByText(/Consider adding your industry/)).toBeInTheDocument();
     });
 
+    it('does not suggest industry when variations are mentioned', () => {
+      render(<SearchInput {...defaultProps} value="I work in the tech industry and want to grow" />);
+      expect(screen.queryByText(/Consider adding your industry/)).not.toBeInTheDocument();
+    });
+
     it('suggests adding stage when not mentioned', () => {
       render(<SearchInput {...defaultProps} value="I want to grow my business" />);
       expect(screen.getByText(/Mention your current stage/)).toBeInTheDocument();
+    });
+
+    it('does not suggest stage when variations are mentioned', () => {
+      render(<SearchInput {...defaultProps} value="I am at early-stage and need help" />);
+      expect(screen.queryByText(/Mention your current stage/)).not.toBeInTheDocument();
     });
 
     it('does not show refinements when input is empty', () => {
