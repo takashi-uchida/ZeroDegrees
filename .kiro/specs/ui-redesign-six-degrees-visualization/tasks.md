@@ -233,15 +233,15 @@ Each task builds on previous work, ensuring no orphaned code. Testing tasks are 
   - Test complete user flow: search → graph → debate → node details
   - Ensure all tests pass, ask the user if questions arise
 
-- [ ] 14. Implement mobile responsive design
-  - [~] 14.1 Create responsive layouts
+- [x] 14. Implement mobile responsive design
+  - [x] 14.1 Create responsive layouts
     - Implement breakpoints for mobile, tablet, desktop
     - Adapt graph canvas size for smaller screens
     - Stack or hide secondary panels on mobile
     - Simplify graph for mobile (reduce node count, simplify layout)
     - _Requirements: 8.1, 8.4_
   
-  - [~] 14.2 Add touch controls
+  - [x] 14.2 Add touch controls
     - Implement pinch-to-zoom for mobile
     - Add touch-friendly pan gestures
     - Increase touch target sizes for nodes
