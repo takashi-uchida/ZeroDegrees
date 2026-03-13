@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Float, ForeignKey, DateTime, Text, Integer
+from sqlalchemy import Column, String, Float, ForeignKey, DateTime, Text, Integer, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from datetime import datetime
 import uuid
@@ -6,6 +6,9 @@ from db.session import Base
 
 class Relationship(Base):
     __tablename__ = "relationships"
+    __table_args__ = (
+        UniqueConstraint('person_a_id', 'person_b_id', name='uix_person_a_person_b'),
+    )
     
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     person_a_id = Column(UUID(as_uuid=True), ForeignKey("people.id"), nullable=False)

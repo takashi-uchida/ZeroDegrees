@@ -4,13 +4,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from contextlib import asynccontextmanager
 from urllib.parse import urlparse
-from pydantic import BaseModel
+from pydantic import BaseModel, validator
 from sqlalchemy.ext.asyncio import AsyncSession
 from config import settings
 from db.session import init_db, get_db
 from forum.orchestrator import run_discovery
 from services.relationship_repository import RelationshipRepository
 from uuid import UUID
+from typing import Optional
 import json
 
 @asynccontextmanager
@@ -56,13 +57,25 @@ class HelpRequest(BaseModel):
     helped_id: UUID
     description: str
     impact_score: float = 1.0
+    
+    @validator('impact_score')
+    def validate_impact_score(cls, v):
+        if v < 0:
+            raise ValueError('impact_score must be non-negative')
+        return v
 
 class ThanksRequest(BaseModel):
     from_person_id: UUID
     to_person_id: UUID
     help_history_id: UUID
     amount: int = 1
-    message: str = None
+    message: Optional[str] = None
+    
+    @validator('amount')
+    def validate_amount(cls, v):
+        if v < 0:
+            raise ValueError('amount must be non-negative')
+        return v
 
 @app.get("/health")
 async def health():
