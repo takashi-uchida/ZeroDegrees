@@ -105,6 +105,59 @@ export default function DistanceVisualizationLayer({
         </div>
       </div>
 
+      {mode === 'heatmap' && maxDistance > 0 && (
+        <div className="mt-4 rounded-2xl border border-slate-800 bg-slate-900 p-4">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Distance scale</p>
+          <div className="mt-3 flex items-center gap-2">
+            <span className="text-xs text-slate-400">Close</span>
+            <div className="flex flex-1 gap-1">
+              {Array.from({ length: Math.min(maxDistance + 1, 8) }, (_, i) => {
+                const distance = i;
+                const hue = 200 - (distance / maxDistance) * 80;
+                const saturation = 70 + (distance / maxDistance) * 20;
+                const lightness = 65 - (distance / maxDistance) * 10;
+                return (
+                  <div
+                    key={i}
+                    className="flex-1 rounded-sm py-3"
+                    style={{
+                      backgroundColor: `hsl(${hue}, ${saturation}%, ${lightness}%)`,
+                    }}
+                    title={`${distance} shifts`}
+                  />
+                );
+              })}
+            </div>
+            <span className="text-xs text-slate-400">Far</span>
+          </div>
+          <div className="mt-2 flex justify-between text-[10px] text-slate-500">
+            <span>0 shifts</span>
+            <span>{maxDistance} shifts</span>
+          </div>
+        </div>
+      )}
+
+      {mode === 'concentric' && maxDistance > 0 && (
+        <div className="mt-4 rounded-2xl border border-slate-800 bg-slate-900 p-4">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Ring distances</p>
+          <div className="mt-3 space-y-2">
+            {[1, 2, 3, 4].filter((ring) => ring <= maxDistance).map((ring) => (
+              <div key={ring} className="flex items-center gap-3">
+                <div className="flex h-8 w-8 items-center justify-center rounded-full border border-slate-700 bg-slate-800 text-xs font-semibold text-slate-300">
+                  {ring}
+                </div>
+                <div className="flex-1 text-xs text-slate-400">
+                  {ring === 1 && 'Direct connections'}
+                  {ring === 2 && 'Second-degree connections'}
+                  {ring === 3 && 'Third-degree connections'}
+                  {ring === 4 && 'Fourth-degree connections'}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="mt-4 flex flex-wrap gap-3">
         {LEGEND.map((item) => (
           <div
