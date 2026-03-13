@@ -168,21 +168,21 @@ Each task builds on previous work, ensuring no orphaned code. Testing tasks are 
     - **Property 6: Agent Debate Transparency** - For any debate session, all messages should be displayed with attribution
     - **Validates: Requirements 4.1, 4.2, 4.3, 4.5**
 
-- [ ] 10. Implement Search Input component
-  - [~] 10.1 Create enhanced SearchInput component
+- [x] 10. Implement Search Input component
+  - [x] 10.1 Create enhanced SearchInput component
     - Build multi-step input form for context gathering
     - Add target type selector (future_self, comrade, guide, any)
     - Implement input validation
     - Add suggested refinements based on input
     - _Requirements: 5.1, 5.2_
   
-  - [~] 10.2 Add "calculating destiny" loading state
+  - [x] 10.2 Add "calculating destiny" loading state
     - Create custom loading animation (not generic spinner)
     - Display meaningful status messages during search
     - Use language that conveys significance ("Calculating your path...")
     - _Requirements: 5.1, 5.2, 6.3_
   
-  - [~] 10.3 Write unit tests for search input
+  - [x] 10.3 Write unit tests for search input
     - Test input validation
     - Test form submission
     - Test loading states
