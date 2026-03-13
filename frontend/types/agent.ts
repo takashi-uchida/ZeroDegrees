@@ -22,6 +22,7 @@ export interface DebateMessage {
   content: string;
   type: MessageType;
   sentiment: MessageSentiment;
+  round?: number; // Round number for multi-agent forum
 }
 
 export type ConsensusDecision = 'accept' | 'reject' | 'defer';

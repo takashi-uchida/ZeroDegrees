@@ -44,10 +44,14 @@ async def run_discovery(query: str) -> AsyncGenerator[dict, None]:
             # Round 1: 各エージェントの評価
             discussion: list[ForumMessage] = []
             for i, candidate in enumerate(evaluated[:5]):
-                scores = candidate["agent_scores"]
+                scores = candidate.get("agent_scores", {})
+                person = candidate.get("person")
+                if not person or not scores:
+                    continue
+                
                 msg = ForumMessage(
                     agent="Problem Agent",
-                    content=f"{candidate['person'].name}: Problem match {scores['problem']:.2f}",
+                    content=f"{person.name}: Problem match {scores.get('problem', 0.0):.2f}",
                     round=1
                 )
                 discussion.append(msg)
@@ -55,7 +59,7 @@ async def run_discovery(query: str) -> AsyncGenerator[dict, None]:
                 
                 msg = ForumMessage(
                     agent="Trajectory Agent",
-                    content=f"{candidate['person'].name}: Future trajectory {scores['trajectory']:.2f}",
+                    content=f"{person.name}: Future trajectory {scores.get('trajectory', 0.0):.2f}",
                     round=1
                 )
                 discussion.append(msg)
@@ -63,7 +67,7 @@ async def run_discovery(query: str) -> AsyncGenerator[dict, None]:
                 
                 msg = ForumMessage(
                     agent="Network Agent",
-                    content=f"{candidate['person'].name}: Network value {scores['network']:.2f}",
+                    content=f"{person.name}: Network value {scores.get('network', 0.0):.2f}",
                     round=1
                 )
                 discussion.append(msg)
@@ -79,20 +83,24 @@ async def run_discovery(query: str) -> AsyncGenerator[dict, None]:
             # Top 3を選出
             matches = []
             for candidate in evaluated[:3]:
-                person = candidate["person"]
+                person = candidate.get("person")
+                if not person:
+                    continue
+                
                 trajectory = candidate.get("trajectory", {})
                 problems = [p.name for p in trajectory.get("problems", [])]
+                scores = candidate.get("agent_scores", {})
                 
                 matches.append(PersonMatch(
                     person_id=person.id,
                     name=person.name,
                     bio=person.properties.get("bio", ""),
                     current_situation=person.properties.get("current_situation", ""),
-                    similarity_score=candidate["final_score"],
-                    reasoning=f"Problem:{candidate['agent_scores']['problem']:.2f} Trajectory:{candidate['agent_scores']['trajectory']:.2f} Network:{candidate['agent_scores']['network']:.2f}",
+                    similarity_score=candidate.get("final_score", 0.0),
+                    reasoning=f"Problem:{scores.get('problem', 0.0):.2f} Trajectory:{scores.get('trajectory', 0.0):.2f} Network:{scores.get('network', 0.0):.2f}",
                     role=None,
                     evidence=problems[:2] if problems else ["No trajectory data"],
-                    distance_label=f"Centrality: {candidate['centrality']:.2f}",
+                    distance_label=f"Centrality: {candidate.get('centrality', 0.0):.2f}",
                     first_question="What was your biggest challenge when you started?"
                 ))
         else:

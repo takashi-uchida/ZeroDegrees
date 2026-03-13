@@ -98,7 +98,7 @@ export default function AgentDebatePanel({
                   <p className="text-sm font-semibold text-white">{agent?.name ?? 'Agent'}</p>
                 </div>
                 <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
-                  Round {message.type}
+                  Round {message.round ?? 1}
                 </span>
               </div>
               <p className="mt-3 text-sm leading-6 text-slate-300">{message.content}</p>
