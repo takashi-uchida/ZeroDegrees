@@ -21,14 +21,14 @@ async def run_discovery(query: str) -> AsyncGenerator[dict, None]:
     yield {"type": "context", "data": public_context}
     
     # Step 2: Find candidates (グラフモード or 従来モード)
-    use_graph = os.getenv("USE_GRAPH_MATCHING", "false").lower() == "true"
+    use_graph = os.getenv("USE_GRAPH_MATCHING", "true").lower() == "true"
     
     yield status_event("searching", "Searching for relevant people")
     async with async_session_maker() as session:
         if use_graph:
             # グラフベースの軌道マッチング
             graph_repo = GraphRepository(session)
-            matches = await graph_repo.find_trajectory_matches(context.embedding, limit=3)
+            matches = await graph_repo.find_trajectory_matches(query, context.embedding, limit=3)
             yield {"type": "candidates", "data": {
                 "count": len(matches),
                 "mode": "graph",
