@@ -12,9 +12,12 @@ export default function AgentDebatePanel({
 
   if (!session) {
     return (
-      <section className="rounded-[30px] border border-slate-800 bg-slate-950/90 p-6">
+      <section 
+        className="rounded-[30px] border border-slate-800 bg-slate-950/90 p-6"
+        aria-labelledby="debate-heading"
+      >
         <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">Multi-Agent Forum</p>
-        <h2 className="mt-2 text-xl font-semibold text-white">No evaluation yet</h2>
+        <h2 id="debate-heading" className="mt-2 text-xl font-semibold text-white">No evaluation yet</h2>
         <p className="mt-3 text-sm leading-7 text-slate-400">
           Start a search to watch agents evaluate candidates from multiple perspectives.
         </p>
@@ -33,13 +36,18 @@ export default function AgentDebatePanel({
   }, {} as Record<string, typeof visibleMessages>);
 
   return (
-    <section className="rounded-[30px] border border-slate-800 bg-slate-950/90 p-6 shadow-[0_20px_80px_rgba(2,6,23,0.25)]">
+    <section 
+      className="rounded-[30px] border border-slate-800 bg-slate-950/90 p-6 shadow-[0_20px_80px_rgba(2,6,23,0.25)]"
+      aria-labelledby="debate-active-heading"
+    >
       <div className="flex items-start justify-between gap-4">
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">Multi-Agent Forum</p>
-          <h2 className="mt-2 text-xl font-semibold text-white">{session.topic}</h2>
+          <h2 id="debate-active-heading" className="mt-2 text-xl font-semibold text-white">{session.topic}</h2>
         </div>
         <span
+          role="status"
+          aria-label={`Debate status: ${session.status}`}
           className={`rounded-full px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.16em] ${
             session.status === 'concluded'
               ? 'bg-emerald-300/20 text-emerald-200'
@@ -52,7 +60,7 @@ export default function AgentDebatePanel({
         </span>
       </div>
 
-      <div className="mt-5 flex flex-wrap gap-2">
+      <div className="mt-5 flex flex-wrap gap-2" role="group" aria-label="Participating agents">
         {session.agents.map((agent) => (
           <div
             key={agent.id}

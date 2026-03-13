@@ -8,6 +8,9 @@ import IntroDrafts from '@/components/IntroDrafts'
 import ProgressRail from '@/components/ProgressRail'
 import QueryForm from '@/components/QueryForm'
 import ReasoningLog from '@/components/ReasoningLog'
+import { AccessibilityProvider } from '@/components/AccessibilityProvider'
+import AccessibilityControls from '@/components/AccessibilityControls'
+import KeyboardShortcuts from '@/components/KeyboardShortcuts'
 import {
   DiscoveryEvent,
   DiscoveryProgressStep,
@@ -15,7 +18,7 @@ import {
   UserContextView,
 } from '@/lib/discovery-types'
 
-export default function Home() {
+function Home() {
   const [isDiscovering, setIsDiscovering] = useState(false)
   const [events, setEvents] = useState<DiscoveryEvent[]>([])
   const [context, setContext] = useState<UserContextView | null>(null)
@@ -131,7 +134,7 @@ export default function Home() {
   }
 
   return (
-    <main className="min-h-screen bg-[linear-gradient(180deg,#f8fafc_0%,#eef6ff_45%,#f8fafc_100%)] px-6 py-10">
+    <main id="main-content" className="min-h-screen bg-[linear-gradient(180deg,#f8fafc_0%,#eef6ff_45%,#f8fafc_100%)] px-6 py-10">
       <div className="mx-auto max-w-[1400px]">
         <header className="mb-12">
           <p className="text-xs uppercase tracking-[0.3em] text-sky-600">Distance-to-action engine</p>
@@ -226,3 +229,15 @@ export default function Home() {
     </main>
   )
 }
+
+function HomeWithAccessibility() {
+  return (
+    <AccessibilityProvider>
+      <AccessibilityControls />
+      <KeyboardShortcuts />
+      <Home />
+    </AccessibilityProvider>
+  )
+}
+
+export default HomeWithAccessibility

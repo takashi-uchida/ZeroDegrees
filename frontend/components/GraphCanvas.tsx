@@ -5,6 +5,7 @@ import * as d3 from 'd3';
 import { Edge, Node } from '@/types/graph';
 import { SearchState } from '@/types/search';
 import { VisualizationMode } from '@/types/ui';
+import { useAccessibility } from './AccessibilityProvider';
 
 interface SimulationNode extends d3.SimulationNodeDatum, Node {}
 
@@ -88,6 +89,7 @@ export default function GraphCanvas({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [useCanvas, setUseCanvas] = useState(false);
   const [transform, setTransform] = useState({ x: 0, y: 0, k: 1 });
+  const { reducedMotion } = useAccessibility();
 
   const pathNodeSet = new Set(activePathNodeIds);
   const pathEdgeSet = new Set(activePathEdgeIds);
@@ -141,6 +143,30 @@ export default function GraphCanvas({
 
     return NODE_COLORS[node.type];
   };
+
+  // Keyboard navigation
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (nodes.length === 0) return;
+
+      if (e.key === 'Escape' && selectedNodeId) {
+        e.preventDefault();
+        onNodeClick?.('');
+      }
+
+      if (e.key === 'Tab' && selectedNodeId) {
+        e.preventDefault();
+        const currentIndex = nodes.findIndex(n => n.id === selectedNodeId);
+        const nextIndex = e.shiftKey 
+          ? (currentIndex - 1 + nodes.length) % nodes.length
+          : (currentIndex + 1) % nodes.length;
+        onNodeClick?.(nodes[nextIndex].id);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [nodes, selectedNodeId, onNodeClick]);
 
   useEffect(() => {
     setUseCanvas(nodes.length > CANVAS_THRESHOLD);
@@ -568,6 +594,8 @@ export default function GraphCanvas({
     <div
       className="relative overflow-hidden rounded-[28px] border border-white/10 bg-[#07111F]"
       style={{ width, height }}
+      role="img"
+      aria-label={`Graph visualization showing ${nodes.length} nodes and ${edges.length} connections. ${selectedNodeId ? `Node ${nodes.find(n => n.id === selectedNodeId)?.label} is selected.` : ''}`}
     >
       <div
         aria-hidden="true"
@@ -580,17 +608,35 @@ export default function GraphCanvas({
       />
 
       {!useCanvas ? (
-        <svg ref={svgRef} width={width} height={height} className="relative z-10" />
+        <svg 
+          ref={svgRef} 
+          width={width} 
+          height={height} 
+          className="relative z-10"
+          role="graphics-document"
+          aria-label="Interactive graph visualization"
+        />
       ) : (
-        <canvas ref={canvasRef} className="relative z-10" />
+        <canvas 
+          ref={canvasRef} 
+          className="relative z-10"
+          role="img"
+          aria-label="Graph canvas visualization"
+        />
       )}
 
       {searchState === 'searching' && (
-        <div className="absolute inset-x-6 bottom-6 z-20 rounded-full border border-sky-300/20 bg-slate-950/80 px-5 py-3 backdrop-blur-sm">
+        <div 
+          className="absolute inset-x-6 bottom-6 z-20 rounded-full border border-sky-300/20 bg-slate-950/80 px-5 py-3 backdrop-blur-sm"
+          role="status"
+          aria-live="polite"
+        >
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-3">
-              <span className="relative flex h-3 w-3">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-sky-300 opacity-75" />
+              <span className="relative flex h-3 w-3" aria-hidden="true">
+                {!reducedMotion && (
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-sky-300 opacity-75" />
+                )}
                 <span className="relative inline-flex h-3 w-3 rounded-full bg-sky-300" />
               </span>
               <p className="text-sm font-medium text-slate-100">
