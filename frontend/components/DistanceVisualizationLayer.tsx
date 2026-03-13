@@ -8,16 +8,16 @@ const MODE_META: Record<
   { title: string; description: string }
 > = {
   concentric: {
-    title: 'Concentric',
-    description: 'Distance appears as rings around the current self.',
+    title: 'Constellation',
+    description: 'Distance radiates as rings from your current position in the network.',
   },
   heatmap: {
     title: 'Heatmap',
-    description: 'Farther viewpoints glow warmer so gaps read instantly.',
+    description: 'Distant connections glow warmer, revealing gaps at a glance.',
   },
   path: {
-    title: 'Path',
-    description: 'The strongest route is emphasized over the rest of the graph.',
+    title: 'Destiny Path',
+    description: 'The calculated route illuminates, showing your destined connection.',
   },
 };
 

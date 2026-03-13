@@ -29,11 +29,11 @@ export default function ProgressIndicator({
     <section className="rounded-[30px] border border-slate-800 bg-slate-950/90 p-6 shadow-[0_20px_80px_rgba(2,6,23,0.25)]">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">Progress</p>
-          <h2 className="mt-2 text-xl font-semibold text-white">Search status</h2>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">Journey</p>
+          <h2 className="mt-2 text-xl font-semibold text-white">Path calculation</h2>
         </div>
         <div className="rounded-full border border-slate-800 bg-slate-900 px-3 py-1.5 text-xs font-medium text-slate-200">
-          {exploredNodes} nodes explored
+          {exploredNodes} nodes traversed
         </div>
       </div>
 

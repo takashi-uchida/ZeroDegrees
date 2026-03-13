@@ -8,24 +8,24 @@ const TARGET_OPTIONS: Array<{
   label: string;
   description: string;
 }> = [
-  { value: 'future_self', label: 'Future Self', description: 'Someone who already crossed this gap' },
-  { value: 'comrade', label: 'Comrade', description: 'Someone living the same tension now' },
-  { value: 'guide', label: 'Guide', description: 'Someone who can unlock the next move' },
-  { value: 'any', label: 'Any path', description: 'Let the system choose the strongest destiny' },
+  { value: 'future_self', label: 'Future Self', description: 'Someone who already crossed this threshold' },
+  { value: 'comrade', label: 'Comrade', description: 'Someone navigating the same passage now' },
+  { value: 'guide', label: 'Guide', description: 'Someone who holds the key to your next move' },
+  { value: 'any', label: 'Any path', description: 'Trust the constellation to reveal the strongest connection' },
 ];
 
 const EXAMPLE_PROMPTS = [
   {
-    label: 'AI SaaS founder',
-    prompt: 'I want to start an AI SaaS company but I still do not have a technical co-founder.',
+    label: 'Technical co-founder',
+    prompt: 'I want to launch an AI SaaS company but need a technical co-founder who shares my vision.',
   },
   {
     label: 'Operator to founder',
-    prompt: 'I need to move from operator to founder, but I cannot see the shortest route.',
+    prompt: 'I need to cross from operator to founder, but the path forward is unclear.',
   },
   {
-    label: 'Japan to global',
-    prompt: 'I want to build globally from Japan and need the right first bridge.',
+    label: 'Global expansion',
+    prompt: 'I want to build a global company from Japan and need the right bridge to make it happen.',
   },
 ];
 
@@ -119,12 +119,12 @@ export default function SearchInput({
 
   return (
     <section className="rounded-[30px] border border-slate-800 bg-slate-950/90 p-6 shadow-[0_20px_80px_rgba(2,6,23,0.3)]">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-sky-300">Search</p>
+      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-sky-300">Pathfinder</p>
       <h2 className="mt-3 text-2xl font-semibold tracking-tight text-white">
-        Describe the gap you are trying to cross.
+        Describe the threshold you need to cross.
       </h2>
       <p className="mt-3 text-sm leading-6 text-slate-300">
-        Keep it plain. The graph is only useful if the problem statement is specific.
+        Be specific. The constellation reveals itself only when the question is clear.
       </p>
 
       <div className="mt-5 grid gap-3 sm:grid-cols-3">
@@ -147,7 +147,7 @@ export default function SearchInput({
           onChange(event.target.value);
           setValidationError(null);
         }}
-        placeholder="Describe the challenge, transition, or person-shaped gap you are trying to cross..."
+        placeholder="Describe the passage, transformation, or destined encounter you seek..."
         className={`mt-5 h-36 w-full resize-none rounded-3xl border px-4 py-4 text-base leading-7 text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 ${
           validationError
             ? 'border-red-500/40 bg-red-950/20 focus:border-red-400/40 focus:ring-red-400/10'
@@ -204,7 +204,7 @@ export default function SearchInput({
         onClick={handleSearch}
         className="mt-6 flex w-full items-center justify-center rounded-2xl bg-sky-300 px-4 py-3.5 text-sm font-semibold text-slate-950 transition hover:bg-sky-200 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-400"
       >
-        Calculate your destiny
+        {isSearching ? 'Calculating your destiny...' : 'Calculate the path'}
       </button>
     </section>
   );
