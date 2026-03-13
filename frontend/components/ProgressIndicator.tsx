@@ -26,25 +26,39 @@ export default function ProgressIndicator({
       : Math.round(((completedCount + 0.5) / Math.max(phases.length, 1)) * 100);
 
   return (
-    <section className="rounded-[30px] border border-slate-800 bg-slate-950/90 p-6 shadow-[0_20px_80px_rgba(2,6,23,0.25)]">
+    <section 
+      className="rounded-[30px] border border-slate-800 bg-slate-950/90 p-6 shadow-[0_20px_80px_rgba(2,6,23,0.25)]"
+      aria-labelledby="progress-heading"
+    >
       <div className="flex items-start justify-between gap-4">
         <div>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">Journey</p>
-          <h2 className="mt-2 text-xl font-semibold text-white">Path calculation</h2>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">Progress</p>
+          <h2 id="progress-heading" className="mt-2 text-xl font-semibold text-white">Search status</h2>
         </div>
         <div className="rounded-full border border-slate-800 bg-slate-900 px-3 py-1.5 text-xs font-medium text-slate-200">
-          {exploredNodes} nodes traversed
+          {exploredNodes} nodes explored
         </div>
       </div>
 
-      <div className="mt-5 h-2 overflow-hidden rounded-full bg-white/10">
+      <div 
+        className="mt-5 h-2 overflow-hidden rounded-full bg-white/10"
+        role="progressbar"
+        aria-valuenow={progressValue}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-label={`Search progress: ${progressValue}%`}
+      >
         <div
           className="h-full rounded-full bg-[linear-gradient(90deg,#7dd3fc_0%,#38bdf8_50%,#6ee7b7_100%)] transition-all duration-500"
           style={{ width: `${progressValue}%` }}
         />
       </div>
 
-      <p className="mt-4 rounded-2xl border border-slate-800 bg-slate-900 px-4 py-3 text-sm leading-6 text-slate-200">
+      <p 
+        className="mt-4 rounded-2xl border border-slate-800 bg-slate-900 px-4 py-3 text-sm leading-6 text-slate-200"
+        role="status"
+        aria-live="polite"
+      >
         {currentMessage}
       </p>
 

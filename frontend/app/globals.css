@@ -22,6 +22,63 @@ body {
   background: rgba(125, 211, 252, 0.35);
 }
 
+/* High Contrast Mode */
+.high-contrast {
+  --color-bg: #000000;
+  --color-fg: #ffffff;
+  --color-border: #ffffff;
+  --color-accent: #ffff00;
+}
+
+.high-contrast * {
+  border-color: var(--color-border) !important;
+  color: var(--color-fg) !important;
+}
+
+.high-contrast button,
+.high-contrast a {
+  background: var(--color-bg) !important;
+  border: 2px solid var(--color-border) !important;
+  color: var(--color-fg) !important;
+}
+
+.high-contrast button:hover,
+.high-contrast a:hover {
+  background: var(--color-accent) !important;
+  color: var(--color-bg) !important;
+}
+
+/* Reduced Motion */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Focus Visible */
+*:focus-visible {
+  outline: 2px solid #7dd3fc;
+  outline-offset: 2px;
+}
+
+/* Screen Reader Only */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+/* Constellation Animations */
 @keyframes constellation-pulse {
   0%, 100% {
     opacity: 0.6;

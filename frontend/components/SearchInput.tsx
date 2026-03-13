@@ -8,24 +8,24 @@ const TARGET_OPTIONS: Array<{
   label: string;
   description: string;
 }> = [
-  { value: 'future_self', label: 'Future Self', description: 'Someone who already crossed this threshold' },
-  { value: 'comrade', label: 'Comrade', description: 'Someone navigating the same passage now' },
-  { value: 'guide', label: 'Guide', description: 'Someone who holds the key to your next move' },
-  { value: 'any', label: 'Any path', description: 'Trust the constellation to reveal the strongest connection' },
+  { value: 'future_self', label: 'Future Self', description: 'Someone who already crossed this gap' },
+  { value: 'comrade', label: 'Comrade', description: 'Someone living the same tension now' },
+  { value: 'guide', label: 'Guide', description: 'Someone who can unlock the next move' },
+  { value: 'any', label: 'Any path', description: 'Let the system choose the strongest destiny' },
 ];
 
 const EXAMPLE_PROMPTS = [
   {
-    label: 'Technical co-founder',
-    prompt: 'I want to launch an AI SaaS company but need a technical co-founder who shares my vision.',
+    label: 'AI SaaS founder',
+    prompt: 'I want to start an AI SaaS company but I still do not have a technical co-founder.',
   },
   {
     label: 'Operator to founder',
-    prompt: 'I need to cross from operator to founder, but the path forward is unclear.',
+    prompt: 'I need to move from operator to founder, but I cannot see the shortest route.',
   },
   {
-    label: 'Global expansion',
-    prompt: 'I want to build a global company from Japan and need the right bridge to make it happen.',
+    label: 'Japan to global',
+    prompt: 'I want to build globally from Japan and need the right first bridge.',
   },
 ];
 
@@ -118,22 +118,26 @@ export default function SearchInput({
   }
 
   return (
-    <section className="rounded-[30px] border border-slate-800 bg-slate-950/90 p-6 shadow-[0_20px_80px_rgba(2,6,23,0.3)]">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-sky-300">Pathfinder</p>
-      <h2 className="mt-3 text-2xl font-semibold tracking-tight text-white">
-        Describe the threshold you need to cross.
+    <section 
+      className="rounded-[30px] border border-slate-800 bg-slate-950/90 p-6 shadow-[0_20px_80px_rgba(2,6,23,0.3)]"
+      aria-labelledby="search-heading"
+    >
+      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-sky-300">Search</p>
+      <h2 id="search-heading" className="mt-3 text-2xl font-semibold tracking-tight text-white">
+        Describe the gap you are trying to cross.
       </h2>
       <p className="mt-3 text-sm leading-6 text-slate-300">
-        Be specific. The constellation reveals itself only when the question is clear.
+        Keep it plain. The graph is only useful if the problem statement is specific.
       </p>
 
-      <div className="mt-5 grid gap-3 sm:grid-cols-3">
+      <div className="mt-5 grid gap-3 sm:grid-cols-3" role="group" aria-label="Example prompts">
         {EXAMPLE_PROMPTS.map((item) => (
           <button
             key={item.label}
             type="button"
             onClick={() => onChange(item.prompt)}
             className="rounded-2xl border border-slate-800 bg-slate-900 px-4 py-3 text-left transition hover:border-sky-300/30 hover:bg-sky-400/10"
+            aria-label={`Use example: ${item.label}`}
           >
             <p className="text-sm font-semibold text-white">{item.label}</p>
             <p className="mt-1 text-xs leading-5 text-slate-400">{item.prompt}</p>
@@ -141,18 +145,24 @@ export default function SearchInput({
         ))}
       </div>
 
+      <label htmlFor="search-textarea" className="sr-only">
+        Describe your challenge or transition
+      </label>
       <textarea
+        id="search-textarea"
         value={value}
         onChange={(event) => {
           onChange(event.target.value);
           setValidationError(null);
         }}
-        placeholder="Describe the passage, transformation, or destined encounter you seek..."
+        placeholder="Describe the challenge, transition, or person-shaped gap you are trying to cross..."
         className={`mt-5 h-36 w-full resize-none rounded-3xl border px-4 py-4 text-base leading-7 text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 ${
           validationError
             ? 'border-red-500/40 bg-red-950/20 focus:border-red-400/40 focus:ring-red-400/10'
             : 'border-slate-800 bg-slate-900 focus:border-sky-300/40 focus:ring-sky-300/10'
         }`}
+        aria-required="true"
+        aria-invalid={!value.trim() || !!validationError}
       />
 
       {validationError && (
@@ -170,41 +180,49 @@ export default function SearchInput({
         </div>
       )}
 
-      <div className="mt-5 grid gap-3 sm:grid-cols-2">
-        {TARGET_OPTIONS.map((option) => {
-          const isActive = option.value === targetType;
+      <fieldset className="mt-5">
+        <legend className="sr-only">Select target type</legend>
+        <div className="grid gap-3 sm:grid-cols-2" role="radiogroup">
+          {TARGET_OPTIONS.map((option) => {
+            const isActive = option.value === targetType;
+>>>>>>> origin/main
 
-          return (
-            <button
-              key={option.value}
-              type="button"
-              onClick={() => onTargetTypeChange(option.value)}
-              className={`rounded-2xl border px-4 py-3 text-left transition ${
-                isActive
-                  ? 'border-sky-300/40 bg-sky-400/10 text-white'
-                  : 'border-slate-800 bg-slate-900 text-slate-300 hover:border-slate-700 hover:bg-slate-900/80'
-              }`}
-            >
-              <div className="flex items-center justify-between gap-3">
-                <span className="text-sm font-semibold">{option.label}</span>
-                {isActive && (
-                  <span className="rounded-full bg-sky-300/20 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-sky-100">
-                    Selected
-                  </span>
-                )}
-              </div>
-              <p className="mt-1 text-sm leading-6 text-slate-400">{option.description}</p>
-            </button>
-          );
-        })}
-      </div>
+            return (
+              <button
+                key={option.value}
+                type="button"
+                role="radio"
+                aria-checked={isActive}
+                onClick={() => onTargetTypeChange(option.value)}
+                className={`rounded-2xl border px-4 py-3 text-left transition ${
+                  isActive
+                    ? 'border-sky-300/40 bg-sky-400/10 text-white'
+                    : 'border-slate-800 bg-slate-900 text-slate-300 hover:border-slate-700 hover:bg-slate-900/80'
+                }`}
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-sm font-semibold">{option.label}</span>
+                  {isActive && (
+                    <span className="rounded-full bg-sky-300/20 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-sky-100">
+                      Selected
+                    </span>
+                  )}
+                </div>
+                <p className="mt-1 text-sm leading-6 text-slate-400">{option.description}</p>
+              </button>
+            );
+          })}
+        </div>
+      </fieldset>
 
       <button
         type="button"
         onClick={handleSearch}
         className="mt-6 flex w-full items-center justify-center rounded-2xl bg-sky-300 px-4 py-3.5 text-sm font-semibold text-slate-950 transition hover:bg-sky-200 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-400"
+        aria-label={isSearching ? 'Searching for route' : 'Start route mapping'}
+        aria-busy={isSearching}
       >
-        {isSearching ? 'Calculating your destiny...' : 'Calculate the path'}
+        Calculate your destiny
       </button>
     </section>
   );

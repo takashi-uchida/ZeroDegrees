@@ -258,34 +258,34 @@ Each task builds on previous work, ensuring no orphaned code. Testing tasks are 
     - Test mobile-specific UI elements
     - _Requirements: 8.2_
 
-- [ ] 15. Implement accessibility features
-  - [~] 15.1 Add ARIA labels and semantic HTML
+- [x] 15. Implement accessibility features
+  - [x] 15.1 Add ARIA labels and semantic HTML
     - Add aria-labels to all interactive elements
     - Use semantic HTML (nav, main, article, etc.)
     - Provide text alternatives for visual elements
     - Add aria-live regions for dynamic updates
     - _Requirements: 9.1, 9.4_
   
-  - [~] 15.2 Implement keyboard navigation
+  - [x] 15.2 Implement keyboard navigation
     - Add tab order for all interactive elements
     - Implement arrow key navigation for graph nodes
     - Add keyboard shortcuts (e.g., "/" for search, "Esc" to close panels)
     - Display focus indicators clearly
     - _Requirements: 9.2_
   
-  - [~] 15.3 Ensure color contrast and add high contrast mode
+  - [x] 15.3 Ensure color contrast and add high contrast mode
     - Verify WCAG AA contrast ratios for all text
     - Add high contrast mode toggle
     - Use patterns in addition to color for important distinctions
     - _Requirements: 9.3_
   
-  - [~] 15.4 Add animation controls
+  - [x] 15.4 Add animation controls
     - Implement "Reduce motion" preference detection
     - Add manual toggle to disable animations
     - Provide alternative static visualizations when animations are disabled
     - _Requirements: 9.5_
   
-  - [~] 15.5 Write property tests for accessibility
+  - [x] 15.5 Write property tests for accessibility
     - **Property 10: Accessibility Compliance** - For any element, accessibility features should be present
     - **Validates: Requirements 9.1, 9.2, 9.3, 9.4, 9.5**
 
