@@ -9,13 +9,17 @@ client = AsyncOpenAI(api_key=settings.openai_api_key)
 async def moderate_discussion(messages: List[ForumMessage], round_num: int) -> str:
     discussion = "\n".join([f"{m.agent}: {m.content}" for m in messages])
     
-    prompt = f"""You are moderating a discussion about matching a user with the right people.
+    prompt = f"""You are moderating a multi-agent evaluation forum.
 
 Round {round_num} Discussion:
 {discussion}
 
-Summarize the key points, highlight any disagreements, and suggest what to focus on next.
-Keep it concise (3-4 sentences)."""
+Synthesize:
+1. Which candidates show strongest signals across agents?
+2. What are the key differentiators?
+3. Any concerns or trade-offs?
+
+Keep it concise (3-4 sentences) and decision-focused."""
 
     response = await client.chat.completions.create(
         model=settings.openai_chat_model,
