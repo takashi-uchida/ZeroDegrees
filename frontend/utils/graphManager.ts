@@ -102,7 +102,7 @@ export class GraphManager {
       let minDistance = Infinity;
       
       unvisited.forEach((nodeId) => {
-        const distance = distances.get(nodeId) || Infinity;
+        const distance = distances.get(nodeId) ?? Infinity;
         if (distance < minDistance) {
           minDistance = distance;
           currentNode = nodeId;
@@ -142,7 +142,7 @@ export class GraphManager {
         const edgeCost = edge ? (1 / Math.max(edge.strength, 0.01)) : 1;
         
         const newDistance = currentDistance + edgeCost;
-        const neighborDistance = distances.get(neighborId) || Infinity;
+        const neighborDistance = distances.get(neighborId) ?? Infinity;
 
         if (newDistance < neighborDistance) {
           distances.set(neighborId, newDistance);

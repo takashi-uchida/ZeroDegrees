@@ -2,509 +2,604 @@
 
 import { useEffect, useRef, useState } from 'react';
 import * as d3 from 'd3';
-import { Node, Edge } from '@/types/graph';
+import { Edge, Node } from '@/types/graph';
+import { SearchState } from '@/types/search';
+import { VisualizationMode } from '@/types/ui';
+
+interface SimulationNode extends d3.SimulationNodeDatum, Node {}
+
+interface SimulationLink extends d3.SimulationLinkDatum<SimulationNode> {
+  id: string;
+  source: string | SimulationNode;
+  target: string | SimulationNode;
+  strength: number;
+  type: Edge['type'];
+  metadata: Edge['metadata'];
+}
 
 interface GraphCanvasProps {
   nodes: Node[];
   edges: Edge[];
   focusNodeId?: string;
   selectedNodeId?: string;
+  activePathNodeIds?: string[];
+  activePathEdgeIds?: string[];
+  hoveredEdgeId?: string;
+  visualizationMode?: VisualizationMode;
+  showDistanceMetrics?: boolean;
   onNodeClick?: (nodeId: string) => void;
-  onEdgeHover?: (edgeId: string) => void;
-  searchState?: 'idle' | 'searching' | 'found';
+  onEdgeHover?: (edgeId?: string) => void;
+  searchState?: SearchState;
   width?: number;
   height?: number;
 }
 
-// Node type colors based on design requirements
 const NODE_COLORS = {
-  user: '#7dd3fc', // sky-300
-  future_self: '#6ee7b7', // emerald-300
-  comrade: '#7dd3fc', // sky-300
-  guide: '#fcd34d', // amber-300
+  user: '#7dd3fc',
+  future_self: '#6ee7b7',
+  comrade: '#38bdf8',
+  guide: '#fcd34d',
 };
 
-const NODE_RADIUS = 8;
-const CANVAS_THRESHOLD = 100; // Use canvas for >100 nodes
+const NODE_RADIUS = 10;
+const CANVAS_THRESHOLD = 100;
+
+function getHeatColor(distance: number, maxDistance: number) {
+  const scale = d3
+    .scaleLinear<string>()
+    .domain([0, Math.max(1, maxDistance / 2), Math.max(1, maxDistance)])
+    .range(['#7dd3fc', '#818cf8', '#fb7185']);
+
+  return scale(distance);
+}
+
+function resolveLinkedNode(
+  nodeRef: string | SimulationNode,
+  nodes: SimulationNode[]
+): SimulationNode | undefined {
+  if (typeof nodeRef === 'string') {
+    return nodes.find((graphNode) => graphNode.id === nodeRef);
+  }
+
+  return nodeRef;
+}
+
+function getLinkedNodeId(nodeRef: string | SimulationNode): string {
+  return typeof nodeRef === 'string' ? nodeRef : nodeRef.id;
+}
 
 export default function GraphCanvas({
   nodes,
   edges,
   focusNodeId,
   selectedNodeId,
+  activePathNodeIds = [],
+  activePathEdgeIds = [],
+  hoveredEdgeId,
+  visualizationMode = 'concentric',
+  showDistanceMetrics = true,
   onNodeClick,
   onEdgeHover,
   searchState = 'idle',
-  width = 800,
-  height = 600,
+  width = 960,
+  height = 720,
 }: GraphCanvasProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [useCanvas, setUseCanvas] = useState(false);
-  
-  // Zoom and pan state
   const [transform, setTransform] = useState({ x: 0, y: 0, k: 1 });
-  const zoomBehaviorRef = useRef<d3.ZoomBehavior<any, any> | null>(null);
 
-  // Calculate neighbor nodes for highlighting
-  const getNeighborIds = (nodeId: string): Set<string> => {
+  const pathNodeSet = new Set(activePathNodeIds);
+  const pathEdgeSet = new Set(activePathEdgeIds);
+  const maxDistance = Math.max(...nodes.map((node) => node.distance), 1);
+
+  const getNeighborIds = (nodeId: string) => {
     const neighbors = new Set<string>();
-    edges.forEach(edge => {
-      if (edge.source === nodeId || (typeof edge.source === 'object' && (edge.source as any).id === nodeId)) {
-        const targetId = typeof edge.target === 'string' ? edge.target : (edge.target as any).id;
-        neighbors.add(targetId);
+    edges.forEach((edge) => {
+      if (edge.source === nodeId) {
+        neighbors.add(edge.target);
       }
-      if (edge.target === nodeId || (typeof edge.target === 'object' && (edge.target as any).id === nodeId)) {
-        const sourceId = typeof edge.source === 'string' ? edge.source : (edge.source as any).id;
-        neighbors.add(sourceId);
+      if (edge.target === nodeId) {
+        neighbors.add(edge.source);
       }
     });
     return neighbors;
   };
 
-  // Get neighbor IDs for selected node
-  const neighborIds = selectedNodeId ? getNeighborIds(selectedNodeId) : new Set<string>();
+  const selectedNeighborSet = selectedNodeId ? getNeighborIds(selectedNodeId) : new Set<string>();
 
-  // Check if a node should be highlighted
-  const isHighlighted = (nodeId: string): boolean => {
-    if (!selectedNodeId) return false;
-    return nodeId === selectedNodeId || neighborIds.has(nodeId);
+  const isNodeHighlighted = (nodeId: string) => {
+    if (selectedNodeId) {
+      return nodeId === selectedNodeId || selectedNeighborSet.has(nodeId);
+    }
+
+    return pathNodeSet.has(nodeId);
   };
 
-  // Check if an edge should be highlighted
-  const isEdgeHighlighted = (edge: Edge): boolean => {
-    if (!selectedNodeId) return false;
-    const sourceId = typeof edge.source === 'string' ? edge.source : (edge.source as any).id;
-    const targetId = typeof edge.target === 'string' ? edge.target : (edge.target as any).id;
-    return (sourceId === selectedNodeId && neighborIds.has(targetId)) ||
-           (targetId === selectedNodeId && neighborIds.has(sourceId));
+  const isEdgeHighlighted = (edge: Pick<SimulationLink, 'id' | 'source' | 'target'>) => {
+    if (hoveredEdgeId && edge.id === hoveredEdgeId) {
+      return true;
+    }
+
+    if (selectedNodeId) {
+      const sourceId = getLinkedNodeId(edge.source);
+      const targetId = getLinkedNodeId(edge.target);
+      const sourceActive =
+        sourceId === selectedNodeId && selectedNeighborSet.has(targetId);
+      const targetActive =
+        targetId === selectedNodeId && selectedNeighborSet.has(sourceId);
+      return sourceActive || targetActive;
+    }
+
+    return pathEdgeSet.has(edge.id);
+  };
+
+  const getNodeFill = (node: Node) => {
+    if (visualizationMode === 'heatmap') {
+      return getHeatColor(node.distance, maxDistance);
+    }
+
+    return NODE_COLORS[node.type];
   };
 
   useEffect(() => {
-    // Determine rendering mode based on node count
     setUseCanvas(nodes.length > CANVAS_THRESHOLD);
   }, [nodes.length]);
 
   useEffect(() => {
-    console.log('useEffect triggered', {
-      containerRef: containerRef.current,
-      svgRef: svgRef.current,
-      canvasRef: canvasRef.current,
-      nodesLength: nodes.length,
-      useCanvas
-    });
-
-    if (nodes.length === 0) {
-      console.log('No nodes to render');
+    if (!nodes.length) {
       return;
     }
 
-    if (!useCanvas && !svgRef.current) {
-      console.log('SVG ref not ready');
-      return;
+    if (useCanvas && canvasRef.current) {
+      const cleanup = renderCanvas();
+      return cleanup;
     }
 
-    if (useCanvas && !canvasRef.current) {
-      console.log('Canvas ref not ready');
-      return;
+    if (!useCanvas && svgRef.current) {
+      const cleanup = renderSvg();
+      return cleanup;
     }
+  }, [
+    activePathEdgeIds.join(','),
+    activePathNodeIds.join(','),
+    edges,
+    focusNodeId,
+    height,
+    hoveredEdgeId,
+    nodes,
+    searchState,
+    selectedNodeId,
+    showDistanceMetrics,
+    useCanvas,
+    visualizationMode,
+    width,
+  ]);
 
-    // Clear previous visualization
-    if (svgRef.current) {
-      d3.select(svgRef.current).selectAll('*').remove();
-    }
-
-    if (useCanvas) {
-      console.log('Calling renderCanvas');
-      renderCanvas();
-    } else {
-      console.log('Calling renderSVG');
-      renderSVG();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nodes, edges, focusNodeId, selectedNodeId, searchState, useCanvas, width, height, neighborIds]);
-
-  const renderSVG = () => {
-    if (!svgRef.current) return;
+  const renderSvg = () => {
+    if (!svgRef.current) return undefined;
 
     const svg = d3.select(svgRef.current);
-    const g = svg.append('g');
+    svg.selectAll('*').remove();
 
-    // Create copies of nodes and edges to avoid mutating props
-    const nodesCopy = nodes.map(n => ({ ...n }));
-    const edgesCopy = edges.map(e => ({ ...e }));
+    const nodesCopy: SimulationNode[] = nodes.map((node) => ({ ...node }));
+    const edgesCopy: SimulationLink[] = edges.map((edge) => ({ ...edge }));
 
-    console.log('Rendering SVG with', nodesCopy.length, 'nodes and', edgesCopy.length, 'edges');
+    const layer = svg.append('g');
 
-    // Define zoom limits and pan boundaries
-    const MIN_ZOOM = 0.5;
-    const MAX_ZOOM = 3;
-    const PAN_BOUNDARY = 500; // Prevent panning beyond this distance from center
-
-    // Create zoom behavior with limits
-    const zoom = d3.zoom<SVGSVGElement, unknown>()
-      .scaleExtent([MIN_ZOOM, MAX_ZOOM])
+    const zoom = d3
+      .zoom<SVGSVGElement, unknown>()
+      .scaleExtent([0.5, 3])
       .translateExtent([
-        [-PAN_BOUNDARY, -PAN_BOUNDARY],
-        [width + PAN_BOUNDARY, height + PAN_BOUNDARY]
+        [-480, -480],
+        [width + 480, height + 480],
       ])
       .on('zoom', (event) => {
-        g.attr('transform', event.transform);
-        // Persist zoom/pan state
+        layer.attr('transform', event.transform);
         setTransform({
           x: event.transform.x,
           y: event.transform.y,
-          k: event.transform.k
+          k: event.transform.k,
         });
       });
 
-    // Apply zoom behavior to SVG
     svg.call(zoom);
-    
-    // Store zoom behavior reference for potential external control
-    zoomBehaviorRef.current = zoom;
 
-    // Restore previous transform state if it exists
     if (transform.k !== 1 || transform.x !== 0 || transform.y !== 0) {
-      svg.call(zoom.transform, d3.zoomIdentity.translate(transform.x, transform.y).scale(transform.k));
+      svg.call(
+        zoom.transform,
+        d3.zoomIdentity.translate(transform.x, transform.y).scale(transform.k)
+      );
     }
 
-    // Create force simulation
     const simulation = d3
-      .forceSimulation(nodesCopy as any)
+      .forceSimulation<SimulationNode>(nodesCopy)
       .force(
         'link',
         d3
-          .forceLink(edgesCopy)
-          .id((d: any) => d.id)
-          .distance(80)
-          .strength((d: any) => d.strength)
-      )
-      .force('charge', d3.forceManyBody().strength(-200))
-      .force('center', d3.forceCenter(width / 2, height / 2))
-      .force('collision', d3.forceCollide().radius(NODE_RADIUS + 5));
+          .forceLink<SimulationNode, SimulationLink>(edgesCopy)
+          .id((d) => d.id)
+          .distance((edge) => {
+            if (visualizationMode === 'concentric') {
+              return 88 + edge.strength * 30;
+            }
 
-    // Render edges
-    const link = g
+            return 84;
+          })
+          .strength((edge) => edge.strength)
+      )
+      .force('charge', d3.forceManyBody().strength(-220))
+      .force('center', d3.forceCenter(width / 2, height / 2))
+      .force('collision', d3.forceCollide().radius(30));
+
+    const ringLayer = layer.append('g');
+    const rings = ringLayer
+      .selectAll('circle')
+      .data([1, 2, 3, 4])
+      .enter()
+      .append('circle')
+      .attr('fill', 'none')
+      .attr('stroke', '#334155')
+      .attr('stroke-opacity', visualizationMode === 'concentric' ? 0.5 : 0)
+      .attr('stroke-dasharray', '6 8')
+      .attr('stroke-width', 1)
+      .attr('r', (distance) => 92 * distance);
+
+    const link = layer
       .append('g')
-      .attr('class', 'links')
       .selectAll('line')
       .data(edgesCopy)
       .enter()
       .append('line')
-      .attr('stroke', (d) => isEdgeHighlighted(d) ? '#7dd3fc' : '#334155')
-      .attr('stroke-opacity', (d) => isEdgeHighlighted(d) ? 1 : (selectedNodeId ? 0.2 : 0.6))
-      .attr('stroke-width', (d) => isEdgeHighlighted(d) ? Math.max(2, d.strength * 4) : Math.max(1, d.strength * 3))
-      .on('mouseenter', function (event, d) {
-        if (!selectedNodeId) {
-          d3.select(this).attr('stroke-opacity', 1).attr('stroke', '#64748b');
-        }
-        if (onEdgeHover) onEdgeHover(d.id);
+      .attr('stroke', (edge) => {
+        if (edge.id === hoveredEdgeId) return '#f8fafc';
+        if (isEdgeHighlighted(edge)) return '#7dd3fc';
+        return '#334155';
       })
-      .on('mouseleave', function (event, d) {
-        if (!selectedNodeId) {
-          d3.select(this).attr('stroke-opacity', 0.6).attr('stroke', '#334155');
+      .attr('stroke-opacity', (edge) => {
+        if (visualizationMode === 'path' && pathEdgeSet.size > 0) {
+          return pathEdgeSet.has(edge.id) ? 1 : 0.12;
         }
-      });
+        if (selectedNodeId || pathEdgeSet.size > 0) {
+          return isEdgeHighlighted(edge) ? 0.95 : 0.2;
+        }
+        return 0.55;
+      })
+      .attr('stroke-width', (edge) => {
+        if (isEdgeHighlighted(edge)) return Math.max(2.5, edge.strength * 4.5);
+        return Math.max(1, edge.strength * 2.8);
+      })
+      .attr('stroke-dasharray', (edge) =>
+        visualizationMode === 'path' && pathEdgeSet.has(edge.id) ? '0' : '0'
+      )
+      .style('cursor', 'pointer')
+      .on('mouseenter', (_event, edge) => onEdgeHover?.(edge.id))
+      .on('mouseleave', () => onEdgeHover?.(undefined));
 
-    // Render nodes
-    const node = g
+    const node = layer
       .append('g')
-      .attr('class', 'nodes')
       .selectAll('g')
       .data(nodesCopy)
       .enter()
       .append('g')
-      .attr('class', 'node')
       .style('cursor', 'pointer')
       .call(
         d3
           .drag<any, any>()
-          .on('start', dragstarted)
-          .on('drag', dragged)
-          .on('end', dragended)
+          .on('start', (event, draggedNode) => {
+            if (!event.active) simulation.alphaTarget(0.3).restart();
+            draggedNode.fx = draggedNode.x;
+            draggedNode.fy = draggedNode.y;
+          })
+          .on('drag', (event, draggedNode) => {
+            draggedNode.fx = event.x;
+            draggedNode.fy = event.y;
+          })
+          .on('end', (event, draggedNode) => {
+            if (!event.active) simulation.alphaTarget(0);
+            draggedNode.fx = null;
+            draggedNode.fy = null;
+          })
       );
 
-    // Node circles
     node
       .append('circle')
-      .attr('r', (d) => {
-        if (d.id === selectedNodeId) return NODE_RADIUS * 1.5;
-        if (isHighlighted(d.id)) return NODE_RADIUS * 1.2;
+      .attr('r', (graphNode) => {
+        if (graphNode.id === selectedNodeId) return NODE_RADIUS * 1.7;
+        if (pathNodeSet.has(graphNode.id)) return NODE_RADIUS * 1.35;
         return NODE_RADIUS;
       })
-      .attr('fill', (d) => NODE_COLORS[d.type])
-      .attr('fill-opacity', (d) => {
-        if (!selectedNodeId) return 1;
-        return isHighlighted(d.id) ? 1 : 0.3;
+      .attr('fill', (graphNode) => getNodeFill(graphNode))
+      .attr('fill-opacity', (graphNode) => {
+        if (selectedNodeId && !isNodeHighlighted(graphNode.id)) return 0.25;
+        if (visualizationMode === 'path' && pathNodeSet.size > 0 && !pathNodeSet.has(graphNode.id)) {
+          return 0.28;
+        }
+        return 1;
       })
-      .attr('stroke', (d) => {
-        if (d.id === selectedNodeId) return '#7dd3fc';
-        if (d.id === focusNodeId) return '#fff';
-        return '#fff';
+      .attr('stroke', (graphNode) => {
+        if (graphNode.id === selectedNodeId) return '#f8fafc';
+        if (graphNode.id === focusNodeId) return '#7dd3fc';
+        if (visualizationMode === 'heatmap') return NODE_COLORS[graphNode.type];
+        return '#f8fafc';
       })
-      .attr('stroke-width', (d) => {
-        if (d.id === selectedNodeId) return 3;
-        return 2;
+      .attr('stroke-width', (graphNode) => {
+        if (graphNode.id === selectedNodeId) return 3;
+        if (pathNodeSet.has(graphNode.id)) return 2.5;
+        return 1.8;
       })
-      .attr('filter', (d) => {
-        if (d.id === selectedNodeId) return 'drop-shadow(0 0 10px rgba(125, 211, 252, 0.8))';
-        if (d.id === focusNodeId) return 'drop-shadow(0 0 8px rgba(255, 255, 255, 0.6))';
+      .attr('filter', (graphNode) => {
+        if (graphNode.id === selectedNodeId) {
+          return 'drop-shadow(0 0 14px rgba(125, 211, 252, 0.7))';
+        }
+        if (pathNodeSet.has(graphNode.id)) {
+          return 'drop-shadow(0 0 10px rgba(148, 163, 184, 0.45))';
+        }
         return 'none';
       })
-      .on('click', function (event, d) {
+      .on('click', (event, graphNode) => {
         event.stopPropagation();
-        if (onNodeClick) onNodeClick(d.id);
+        onNodeClick?.(graphNode.id);
       });
 
-    // Node labels
     node
       .append('text')
-      .text((d) => d.label)
+      .text((graphNode) => graphNode.label)
       .attr('x', 0)
-      .attr('y', (d) => {
-        if (d.id === selectedNodeId) return NODE_RADIUS * 1.5 + 14;
-        if (isHighlighted(d.id)) return NODE_RADIUS * 1.2 + 14;
-        return NODE_RADIUS + 14;
-      })
+      .attr('y', 26)
+      .attr('font-size', '11px')
+      .attr('font-weight', 600)
       .attr('text-anchor', 'middle')
-      .attr('font-size', '10px')
       .attr('fill', '#e2e8f0')
-      .attr('fill-opacity', (d) => {
-        if (!selectedNodeId) return 1;
-        return isHighlighted(d.id) ? 1 : 0.4;
+      .attr('fill-opacity', (graphNode) => {
+        if (selectedNodeId && !isNodeHighlighted(graphNode.id)) return 0.35;
+        return 1;
       })
       .attr('pointer-events', 'none');
 
-    // Update positions on simulation tick
-    simulation.on('tick', () => {
-      link
-        .attr('x1', (d: any) => d.source.x)
-        .attr('y1', (d: any) => d.source.y)
-        .attr('x2', (d: any) => d.target.x)
-        .attr('y2', (d: any) => d.target.y);
+    if (showDistanceMetrics) {
+      node
+        .append('text')
+        .text((graphNode) =>
+          graphNode.id === 'user-1' ? 'You are here' : `${graphNode.distance} shifts`
+        )
+        .attr('x', 0)
+        .attr('y', -18)
+        .attr('font-size', '10px')
+        .attr('text-anchor', 'middle')
+        .attr('fill', '#94a3b8')
+        .attr('pointer-events', 'none');
+    }
 
-      node.attr('transform', (d: any) => `translate(${d.x},${d.y})`);
+    simulation.on('tick', () => {
+      const userNode = nodesCopy.find((graphNode) => graphNode.type === 'user') as
+        | (Node & { x?: number; y?: number })
+        | undefined;
+
+      if (userNode?.x !== undefined && userNode?.y !== undefined) {
+        rings
+          .attr('cx', userNode.x)
+          .attr('cy', userNode.y)
+          .attr('stroke-opacity', visualizationMode === 'concentric' ? 0.45 : 0);
+      }
+
+      link
+        .attr('x1', (edge) => resolveLinkedNode(edge.source, nodesCopy)?.x ?? 0)
+        .attr('y1', (edge) => resolveLinkedNode(edge.source, nodesCopy)?.y ?? 0)
+        .attr('x2', (edge) => resolveLinkedNode(edge.target, nodesCopy)?.x ?? 0)
+        .attr('y2', (edge) => resolveLinkedNode(edge.target, nodesCopy)?.y ?? 0);
+
+      node.attr('transform', (graphNode: SimulationNode) => `translate(${graphNode.x},${graphNode.y})`);
     });
 
-    // Drag functions
-    function dragstarted(event: any, d: any) {
-      if (!event.active) simulation.alphaTarget(0.3).restart();
-      d.fx = d.x;
-      d.fy = d.y;
-    }
-
-    function dragged(event: any, d: any) {
-      d.fx = event.x;
-      d.fy = event.y;
-    }
-
-    function dragended(event: any, d: any) {
-      if (!event.active) simulation.alphaTarget(0);
-      d.fx = null;
-      d.fy = null;
-    }
-
-    // Cleanup
     return () => {
       simulation.stop();
     };
   };
 
   const renderCanvas = () => {
-    if (!canvasRef.current) return;
+    if (!canvasRef.current) return undefined;
 
     const canvas = canvasRef.current;
     const context = canvas.getContext('2d');
-    if (!context) return;
+    if (!context) return undefined;
 
-    // Create copies of nodes and edges to avoid mutating props
-    const nodesCopy = nodes.map(n => ({ ...n }));
-    const edgesCopy = edges.map(e => ({ ...e }));
-
-    console.log('Rendering Canvas with', nodesCopy.length, 'nodes and', edgesCopy.length, 'edges');
-
-    // Set canvas size
     canvas.width = width;
     canvas.height = height;
 
-    // Define zoom limits and pan boundaries
-    const MIN_ZOOM = 0.5;
-    const MAX_ZOOM = 3;
-    const PAN_BOUNDARY = 500;
+    const nodesCopy: SimulationNode[] = nodes.map((node) => ({ ...node }));
+    const edgesCopy: SimulationLink[] = edges.map((edge) => ({ ...edge }));
 
-    // Create force simulation
     const simulation = d3
-      .forceSimulation(nodesCopy as any)
+      .forceSimulation<SimulationNode>(nodesCopy)
       .force(
         'link',
         d3
-          .forceLink(edgesCopy)
-          .id((d: any) => d.id)
-          .distance(80)
-          .strength((d: any) => d.strength)
+          .forceLink<SimulationNode, SimulationLink>(edgesCopy)
+          .id((d) => d.id)
+          .distance(82)
+          .strength((edge) => edge.strength)
       )
-      .force('charge', d3.forceManyBody().strength(-200))
+      .force('charge', d3.forceManyBody().strength(-220))
       .force('center', d3.forceCenter(width / 2, height / 2))
-      .force('collision', d3.forceCollide().radius(NODE_RADIUS + 5));
+      .force('collision', d3.forceCollide().radius(28));
 
-    // Render function with transform applied
-    const render = () => {
-      context.save();
-      context.clearRect(0, 0, width, height);
-      
-      // Apply transform
-      context.translate(transform.x, transform.y);
-      context.scale(transform.k, transform.k);
-
-      // Draw edges
-      edgesCopy.forEach((edge: any) => {
-        const highlighted = isEdgeHighlighted(edge);
-        context.beginPath();
-        context.strokeStyle = highlighted ? '#7dd3fc' : '#334155';
-        context.globalAlpha = highlighted ? 1 : (selectedNodeId ? 0.2 : 0.6);
-        context.lineWidth = highlighted ? Math.max(2, edge.strength * 4) : Math.max(1, edge.strength * 3);
-        context.moveTo(edge.source.x, edge.source.y);
-        context.lineTo(edge.target.x, edge.target.y);
-        context.stroke();
-      });
-
-      // Draw nodes
-      context.globalAlpha = 1;
-      nodesCopy.forEach((node: any) => {
-        const highlighted = isHighlighted(node.id);
-        const isSelected = node.id === selectedNodeId;
-        const radius = isSelected ? NODE_RADIUS * 1.5 : (highlighted ? NODE_RADIUS * 1.2 : NODE_RADIUS);
-        
-        // Draw glow for selected node
-        if (isSelected) {
-          context.shadowColor = 'rgba(125, 211, 252, 0.8)';
-          context.shadowBlur = 10;
-        } else if (node.id === focusNodeId) {
-          context.shadowColor = 'rgba(255, 255, 255, 0.6)';
-          context.shadowBlur = 8;
-        } else {
-          context.shadowBlur = 0;
-        }
-        
-        context.beginPath();
-        context.arc(node.x, node.y, radius, 0, 2 * Math.PI);
-        context.fillStyle = NODE_COLORS[node.type as keyof typeof NODE_COLORS];
-        context.globalAlpha = (!selectedNodeId || highlighted) ? 1 : 0.3;
-        context.fill();
-        
-        // Reset shadow
-        context.shadowBlur = 0;
-        
-        context.strokeStyle = isSelected ? '#7dd3fc' : '#fff';
-        context.lineWidth = isSelected ? 3 : 2;
-        context.globalAlpha = 1;
-        context.stroke();
-
-        // Draw label
-        context.fillStyle = '#e2e8f0';
-        context.globalAlpha = (!selectedNodeId || highlighted) ? 1 : 0.4;
-        context.font = '10px sans-serif';
-        context.textAlign = 'center';
-        context.fillText(node.label, node.x, node.y + radius + 14);
-      });
-      
-      context.restore();
-    };
-
-    // Update on simulation tick
-    simulation.on('tick', render);
-
-    // Create zoom behavior for canvas
-    const zoom = d3.zoom<HTMLCanvasElement, unknown>()
-      .scaleExtent([MIN_ZOOM, MAX_ZOOM])
+    const zoom = d3
+      .zoom<HTMLCanvasElement, unknown>()
+      .scaleExtent([0.5, 3])
       .translateExtent([
-        [-PAN_BOUNDARY, -PAN_BOUNDARY],
-        [width + PAN_BOUNDARY, height + PAN_BOUNDARY]
+        [-480, -480],
+        [width + 480, height + 480],
       ])
       .on('zoom', (event) => {
         setTransform({
           x: event.transform.x,
           y: event.transform.y,
-          k: event.transform.k
+          k: event.transform.k,
         });
         render();
       });
 
-    // Apply zoom behavior to canvas
     d3.select(canvas).call(zoom);
-    
-    // Store zoom behavior reference
-    zoomBehaviorRef.current = zoom;
 
-    // Restore previous transform state
-    if (transform.k !== 1 || transform.x !== 0 || transform.y !== 0) {
-      d3.select(canvas).call(zoom.transform, d3.zoomIdentity.translate(transform.x, transform.y).scale(transform.k));
-    }
+    const render = () => {
+      context.save();
+      context.clearRect(0, 0, width, height);
+      context.translate(transform.x, transform.y);
+      context.scale(transform.k, transform.k);
 
-    // Handle canvas interactions with transform
-    const handleCanvasClick = (event: MouseEvent) => {
+      const userNode = nodesCopy.find((graphNode) => graphNode.type === 'user') as
+        | (Node & { x?: number; y?: number })
+        | undefined;
+      if (
+        visualizationMode === 'concentric' &&
+        userNode?.x !== undefined &&
+        userNode?.y !== undefined
+      ) {
+        [1, 2, 3, 4].forEach((distance) => {
+          context.beginPath();
+          context.setLineDash([6, 8]);
+          context.strokeStyle = 'rgba(148, 163, 184, 0.35)';
+          context.lineWidth = 1;
+          context.arc(userNode.x ?? 0, userNode.y ?? 0, 92 * distance, 0, Math.PI * 2);
+          context.stroke();
+        });
+        context.setLineDash([]);
+      }
+
+      edgesCopy.forEach((edge) => {
+        const sourceNode = resolveLinkedNode(edge.source, nodesCopy);
+        const targetNode = resolveLinkedNode(edge.target, nodesCopy);
+        if (!sourceNode || !targetNode) {
+          return;
+        }
+
+        context.beginPath();
+        context.strokeStyle = isEdgeHighlighted(edge) ? '#7dd3fc' : '#334155';
+        context.globalAlpha =
+          visualizationMode === 'path' && pathEdgeSet.size > 0
+            ? pathEdgeSet.has(edge.id)
+              ? 1
+              : 0.12
+            : isEdgeHighlighted(edge)
+              ? 0.95
+              : 0.3;
+        context.lineWidth = isEdgeHighlighted(edge)
+          ? Math.max(2.5, edge.strength * 4.5)
+          : Math.max(1, edge.strength * 2.6);
+        context.moveTo(sourceNode.x ?? 0, sourceNode.y ?? 0);
+        context.lineTo(targetNode.x ?? 0, targetNode.y ?? 0);
+        context.stroke();
+      });
+
+      nodesCopy.forEach((graphNode: SimulationNode) => {
+        const nodeX = graphNode.x ?? 0;
+        const nodeY = graphNode.y ?? 0;
+        const radius =
+          graphNode.id === selectedNodeId
+            ? NODE_RADIUS * 1.7
+            : pathNodeSet.has(graphNode.id)
+              ? NODE_RADIUS * 1.35
+              : NODE_RADIUS;
+
+        context.beginPath();
+        context.fillStyle = getNodeFill(graphNode);
+        context.globalAlpha =
+          selectedNodeId && !isNodeHighlighted(graphNode.id)
+            ? 0.25
+            : visualizationMode === 'path' && pathNodeSet.size > 0 && !pathNodeSet.has(graphNode.id)
+              ? 0.28
+              : 1;
+        context.arc(nodeX, nodeY, radius, 0, Math.PI * 2);
+        context.fill();
+
+        context.globalAlpha = 1;
+        context.strokeStyle =
+          visualizationMode === 'heatmap' ? NODE_COLORS[graphNode.type] : '#f8fafc';
+        context.lineWidth = graphNode.id === selectedNodeId ? 3 : 2;
+        context.stroke();
+
+        context.fillStyle = '#e2e8f0';
+        context.font = '600 11px sans-serif';
+        context.textAlign = 'center';
+        context.fillText(graphNode.label, nodeX, nodeY + 26);
+
+        if (showDistanceMetrics) {
+          context.fillStyle = '#94a3b8';
+          context.font = '10px sans-serif';
+          context.fillText(
+            graphNode.id === 'user-1' ? 'You are here' : `${graphNode.distance} shifts`,
+            nodeX,
+            nodeY - 18
+          );
+        }
+      });
+
+      context.restore();
+    };
+
+    simulation.on('tick', render);
+
+    const handleClick = (event: MouseEvent) => {
       const rect = canvas.getBoundingClientRect();
-      // Apply inverse transform to get actual coordinates
       const x = (event.clientX - rect.left - transform.x) / transform.k;
       const y = (event.clientY - rect.top - transform.y) / transform.k;
 
-      // Find clicked node
-      const clickedNode = nodesCopy.find((node: any) => {
-        const dx = x - node.x;
-        const dy = y - node.y;
-        return Math.sqrt(dx * dx + dy * dy) <= NODE_RADIUS;
+      const clickedNode = nodesCopy.find((graphNode: SimulationNode) => {
+        const dx = x - (graphNode.x ?? 0);
+        const dy = y - (graphNode.y ?? 0);
+        return Math.sqrt(dx * dx + dy * dy) <= NODE_RADIUS * 1.8;
       });
 
-      if (clickedNode && onNodeClick) {
-        onNodeClick(clickedNode.id);
+      if (clickedNode) {
+        onNodeClick?.(clickedNode.id);
       }
     };
 
-    canvas.addEventListener('click', handleCanvasClick);
+    canvas.addEventListener('click', handleClick);
 
-    // Cleanup
     return () => {
       simulation.stop();
-      canvas.removeEventListener('click', handleCanvasClick);
+      canvas.removeEventListener('click', handleClick);
     };
   };
 
   return (
     <div
-      ref={containerRef}
-      className="relative overflow-hidden rounded-3xl border border-white/10 bg-[#07111F]"
+      className="relative overflow-hidden rounded-[28px] border border-white/10 bg-[#07111F]"
       style={{ width, height }}
     >
-      {/* Debug info */}
-      <div className="absolute left-4 top-4 z-10 rounded bg-black/50 p-2 text-xs text-white">
-        <div>Nodes: {nodes.length}</div>
-        <div>Edges: {edges.length}</div>
-        <div>Mode: {useCanvas ? 'Canvas' : 'SVG'}</div>
-        <div>Container: {containerRef.current ? 'OK' : 'NULL'}</div>
-        <div>SVG Ref: {svgRef.current ? 'OK' : 'NULL'}</div>
-      </div>
-      
+      <div
+        aria-hidden="true"
+        className="absolute inset-0 opacity-80"
+        style={{
+          backgroundImage:
+            'radial-gradient(circle at 20% 20%, rgba(56, 189, 248, 0.15), transparent 22%), radial-gradient(circle at 80% 12%, rgba(34, 197, 94, 0.12), transparent 18%), linear-gradient(rgba(255,255,255,0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.04) 1px, transparent 1px)',
+          backgroundSize: 'auto, auto, 24px 24px, 24px 24px',
+        }}
+      />
+
       {!useCanvas ? (
-        <svg
-          ref={svgRef}
-          width={width}
-          height={height}
-          className="graph-canvas"
-        />
+        <svg ref={svgRef} width={width} height={height} className="relative z-10" />
       ) : (
-        <canvas
-          ref={canvasRef}
-          className="graph-canvas"
-        />
+        <canvas ref={canvasRef} className="relative z-10" />
       )}
-      
+
       {searchState === 'searching' && (
-        <div className="absolute inset-0 flex items-center justify-center bg-black/20 backdrop-blur-sm">
-          <div className="text-center">
-            <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-sky-300 border-t-transparent" />
-            <p className="mt-4 text-sm text-slate-300">Exploring connections...</p>
+        <div className="absolute inset-x-6 bottom-6 z-20 rounded-full border border-sky-300/20 bg-slate-950/80 px-5 py-3 backdrop-blur-sm">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <span className="relative flex h-3 w-3">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-sky-300 opacity-75" />
+                <span className="relative inline-flex h-3 w-3 rounded-full bg-sky-300" />
+              </span>
+              <p className="text-sm font-medium text-slate-100">
+                Tracing the shortest trusted route through the graph...
+              </p>
+            </div>
+            <p className="text-xs uppercase tracking-[0.22em] text-slate-400">
+              {visualizationMode}
+            </p>
           </div>
         </div>
       )}

@@ -47,3 +47,4 @@ out/
 .pytest_cache/
 .coverage
 htmlcov/
+frontend/.next.*
