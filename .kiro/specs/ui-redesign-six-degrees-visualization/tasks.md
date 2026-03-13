@@ -336,22 +336,22 @@ Each task builds on previous work, ensuring no orphaned code. Testing tasks are 
     - Test error boundary behavior
     - _Requirements: All (robustness)_
 
-- [ ] 18. Add visual polish and "destiny" metaphors
-  - [~] 18.1 Enhance visual design
+- [x] 18. Add visual polish and "destiny" metaphors
+  - [x] 18.1 Enhance visual design
     - Add constellation-like visual effects to graph
     - Implement compass metaphor for navigation
     - Add particle effects for path discovery
     - Polish color scheme and typography
     - _Requirements: 5.1, 5.2, 5.3_
   
-  - [~] 18.2 Refine language and messaging
+  - [x] 18.2 Refine language and messaging
     - Replace "recommendations" with "calculated destinies"
     - Add meaningful explanations for each match
     - Use language that conveys significance
     - Avoid dating app / LinkedIn patterns
     - _Requirements: 5.2, 5.4, 5.5_
   
-  - [~] 18.3 Conduct user testing
+  - [ ] 18.3 Conduct user testing
     - Test with target users
     - Gather feedback on "destiny" experience
     - Iterate on visual and language choices

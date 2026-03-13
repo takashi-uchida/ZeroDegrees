@@ -8,11 +8,14 @@
 
 html {
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
+  font-feature-settings: "kern" 1, "liga" 1;
 }
 
 body {
   margin: 0;
+  letter-spacing: -0.01em;
 }
 
 ::selection {
@@ -73,4 +76,25 @@ body {
   clip: rect(0, 0, 0, 0);
   white-space: nowrap;
   border-width: 0;
+}
+
+/* Constellation Animations */
+@keyframes constellation-pulse {
+  0%, 100% {
+    opacity: 0.6;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.1);
+  }
+}
+
+@keyframes destiny-glow {
+  0%, 100% {
+    box-shadow: 0 0 8px rgba(125, 211, 252, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 16px rgba(125, 211, 252, 0.8);
+  }
 }
