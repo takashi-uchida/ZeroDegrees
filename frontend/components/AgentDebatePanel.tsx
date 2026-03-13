@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { DebateSession } from '@/types/agent';
+import { useState, useEffect, useRef } from 'react';
+import { DebateSession, MessageType } from '@/types/agent';
 
 export default function AgentDebatePanel({
   session,
@@ -9,6 +9,15 @@ export default function AgentDebatePanel({
   session: DebateSession | null;
 }) {
   const [showFullTranscript, setShowFullTranscript] = useState(false);
+  const [filterAgent, setFilterAgent] = useState<string | null>(null);
+  const [filterType, setFilterType] = useState<MessageType | null>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!showFullTranscript && session?.messages) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [session?.messages?.length, showFullTranscript, session]);
 
   if (!session) {
     return (
@@ -22,15 +31,37 @@ export default function AgentDebatePanel({
     );
   }
 
-  const visibleMessages = showFullTranscript ? session.messages : session.messages.slice(-5);
+  const filteredMessages = session.messages.filter(msg => {
+    if (filterAgent && msg.agentId !== filterAgent) return false;
+    if (filterType && msg.type !== filterType) return false;
+    return true;
+  });
+
+  const visibleMessages = showFullTranscript ? filteredMessages : filteredMessages.slice(-5);
   
-  // エージェント別にメッセージをグループ化
-  const messagesByAgent = visibleMessages.reduce((acc, msg) => {
+  const messagesByAgent = session.messages.reduce((acc, msg) => {
     const agentName = session.agents.find(a => a.id === msg.agentId)?.name || 'Unknown';
     if (!acc[agentName]) acc[agentName] = [];
     acc[agentName].push(msg);
     return acc;
-  }, {} as Record<string, typeof visibleMessages>);
+  }, {} as Record<string, typeof session.messages>);
+
+  const sentimentIcon = (sentiment: string) => {
+    if (sentiment === 'positive') return '✓';
+    if (sentiment === 'negative') return '✗';
+    return '−';
+  };
+
+  const sentimentColor = (sentiment: string) => {
+    if (sentiment === 'positive') return 'text-emerald-400';
+    if (sentiment === 'negative') return 'text-rose-400';
+    return 'text-slate-400';
+  };
+
+  const formatTime = (timestamp: number) => {
+    const date = new Date(timestamp);
+    return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+  };
 
   return (
     <section className="rounded-[30px] border border-slate-800 bg-slate-950/90 p-6 shadow-[0_20px_80px_rgba(2,6,23,0.25)]">
@@ -54,64 +85,119 @@ export default function AgentDebatePanel({
 
       <div className="mt-5 flex flex-wrap gap-2">
         {session.agents.map((agent) => (
-          <div
+          <button
             key={agent.id}
-            className="rounded-full border border-white/10 px-3 py-1.5 text-xs text-slate-300"
+            onClick={() => setFilterAgent(filterAgent === agent.id ? null : agent.id)}
+            className={`rounded-full border px-3 py-1.5 text-xs transition ${
+              filterAgent === agent.id
+                ? 'border-white/30 bg-white/10 text-white'
+                : 'border-white/10 text-slate-300 hover:border-white/20'
+            }`}
           >
             <span className="mr-2 inline-block h-2.5 w-2.5 rounded-full" style={{ backgroundColor: agent.color }} />
             {agent.name}
             <span className="ml-2 text-slate-500">({messagesByAgent[agent.name]?.length || 0})</span>
-          </div>
+          </button>
         ))}
       </div>
 
       {session.consensus && (
-        <div className="mt-5 rounded-2xl border border-emerald-300/20 bg-emerald-400/10 p-4">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-200">Final Decision</p>
-          <p className="mt-2 text-sm font-semibold text-white">
-            {Math.round(session.consensus.confidence * 100)}% confidence · {session.consensus.decision}
-          </p>
-          <p className="mt-2 text-sm leading-6 text-slate-300">{session.consensus.reasoning}</p>
+        <div className="mt-5 rounded-2xl border border-emerald-300/20 bg-emerald-400/10 p-4 animate-in fade-in slide-in-from-top-2 duration-500">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-200">Consensus Reached</p>
+          <div className="mt-3 flex items-center gap-4">
+            <div className="flex-1">
+              <p className="text-sm font-semibold text-white">
+                {session.consensus.decision.toUpperCase()}
+              </p>
+              <div className="mt-2 h-2 overflow-hidden rounded-full bg-emerald-950/50">
+                <div 
+                  className="h-full bg-emerald-400 transition-all duration-1000 ease-out"
+                  style={{ width: `${session.consensus.confidence * 100}%` }}
+                />
+              </div>
+              <p className="mt-1 text-xs text-emerald-300">
+                {Math.round(session.consensus.confidence * 100)}% confidence
+              </p>
+            </div>
+          </div>
+          <p className="mt-3 text-sm leading-6 text-slate-300">{session.consensus.reasoning}</p>
+          <div className="mt-3 flex gap-4 text-xs">
+            <div>
+              <span className="text-slate-400">Supporting: </span>
+              <span className="text-emerald-300">{session.consensus.supportingAgents.length}</span>
+            </div>
+            <div>
+              <span className="text-slate-400">Opposing: </span>
+              <span className="text-rose-300">{session.consensus.opposingAgents.length}</span>
+            </div>
+          </div>
         </div>
       )}
 
-      <div className="mt-5 space-y-3">
+      <div className="mt-5 flex gap-2">
+        {(['opinion', 'evidence', 'question', 'conclusion'] as MessageType[]).map(type => (
+          <button
+            key={type}
+            onClick={() => setFilterType(filterType === type ? null : type)}
+            className={`rounded-full border px-3 py-1 text-[10px] font-medium uppercase tracking-wider transition ${
+              filterType === type
+                ? 'border-white/30 bg-white/10 text-white'
+                : 'border-slate-800 text-slate-400 hover:border-slate-700'
+            }`}
+          >
+            {type}
+          </button>
+        ))}
+      </div>
+
+      <div className="mt-5 max-h-[500px] space-y-3 overflow-y-auto">
         {visibleMessages.map((message) => {
           const agent = session.agents.find((item) => item.id === message.agentId);
-          const isModeratorOrSynthesizer = agent?.name === 'Moderator' || agent?.name === 'Synthesizer';
+          const isModeratorOrSynthesizer = agent?.role === 'synthesizer';
 
           return (
             <article 
               key={message.id} 
-              className={`rounded-2xl border p-4 ${
+              className={`rounded-2xl border p-4 animate-in fade-in slide-in-from-bottom-2 duration-300 ${
                 isModeratorOrSynthesizer 
                   ? 'border-amber-300/30 bg-amber-400/5' 
                   : 'border-slate-800 bg-slate-900'
               }`}
             >
-              <div className="flex items-center justify-between gap-3">
+              <div className="flex items-start justify-between gap-3">
                 <div className="flex items-center gap-3">
-                  <span
-                    className="inline-block h-3 w-3 rounded-full"
-                    style={{ backgroundColor: agent?.color ?? '#94a3b8' }}
-                  />
-                  <p className="text-sm font-semibold text-white">{agent?.name ?? 'Agent'}</p>
+                  <div 
+                    className="flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold"
+                    style={{ backgroundColor: agent?.color ?? '#94a3b8', color: '#000' }}
+                  >
+                    {agent?.name?.charAt(0) ?? 'A'}
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-white">{agent?.name ?? 'Agent'}</p>
+                    <p className="text-[10px] text-slate-500">{formatTime(message.timestamp)}</p>
+                  </div>
                 </div>
-                <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
-                  Round {message.round ?? 1}
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className={`text-sm ${sentimentColor(message.sentiment)}`}>
+                    {sentimentIcon(message.sentiment)}
+                  </span>
+                  <span className="rounded-full bg-slate-800 px-2 py-0.5 text-[9px] font-medium uppercase tracking-wider text-slate-400">
+                    {message.type}
+                  </span>
+                </div>
               </div>
               <p className="mt-3 text-sm leading-6 text-slate-300">{message.content}</p>
             </article>
           );
         })}
+        <div ref={messagesEndRef} />
       </div>
 
       {session.messages.length > 5 && (
         <button
           type="button"
           onClick={() => setShowFullTranscript((current) => !current)}
-          className="mt-5 rounded-full border border-slate-800 px-4 py-2 text-sm font-medium text-slate-200 transition hover:bg-slate-900"
+          className="mt-5 w-full rounded-full border border-slate-800 px-4 py-2 text-sm font-medium text-slate-200 transition hover:bg-slate-900"
         >
           {showFullTranscript ? 'Show recent only' : `Show all ${session.messages.length} messages`}
         </button>
