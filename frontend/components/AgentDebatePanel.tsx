@@ -14,10 +14,10 @@ export default function AgentDebatePanel({
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!showFullTranscript) {
+    if (!showFullTranscript && session?.messages) {
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
-  }, [session?.messages.length, showFullTranscript]);
+  }, [session?.messages?.length, showFullTranscript, session]);
 
   if (!session) {
     return (
@@ -170,7 +170,7 @@ export default function AgentDebatePanel({
                     className="flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold"
                     style={{ backgroundColor: agent?.color ?? '#94a3b8', color: '#000' }}
                   >
-                    {agent?.name.charAt(0) ?? 'A'}
+                    {agent?.name?.charAt(0) ?? 'A'}
                   </div>
                   <div>
                     <p className="text-sm font-semibold text-white">{agent?.name ?? 'Agent'}</p>
