@@ -32,54 +32,63 @@ class TrajectoryEvaluator:
     
     async def _agent_problem_match(self, user_query: str, candidates: List[Dict]) -> List[float]:
         """Agent A: 問題の一致度を評価"""
-        prompt = f"""User's problem: {user_query}
+        try:
+            prompt = f"""User's problem: {user_query}
 
 Rate each candidate's relevance to solving this specific problem (0-1):
 {self._format_candidates(candidates)}
 
 Return only numbers, one per line."""
-        
-        response = await client.chat.completions.create(
-            model=settings.openai_chat_model,
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.3
-        )
-        
-        return self._parse_scores(response.choices[0].message.content, len(candidates))
+            
+            response = await client.chat.completions.create(
+                model=settings.openai_chat_model,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.3
+            )
+            
+            return self._parse_scores(response.choices[0].message.content, len(candidates))
+        except Exception:
+            return [0.5] * len(candidates)
     
     async def _agent_trajectory_match(self, user_query: str, candidates: List[Dict]) -> List[float]:
         """Agent B: 未来軌道の一致度を評価"""
-        prompt = f"""User's current state: {user_query}
+        try:
+            prompt = f"""User's current state: {user_query}
 
 Rate how well each candidate represents the user's future trajectory (0-1):
 {self._format_candidates_with_trajectory(candidates)}
 
 Return only numbers, one per line."""
-        
-        response = await client.chat.completions.create(
-            model=settings.openai_chat_model,
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.3
-        )
-        
-        return self._parse_scores(response.choices[0].message.content, len(candidates))
+            
+            response = await client.chat.completions.create(
+                model=settings.openai_chat_model,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.3
+            )
+            
+            return self._parse_scores(response.choices[0].message.content, len(candidates))
+        except Exception:
+            return [0.5] * len(candidates)
     
     async def _agent_network_value(self, user_query: str, candidates: List[Dict]) -> List[float]:
         """Agent C: ネットワーク価値を評価"""
-        prompt = f"""User's goal: {user_query}
+        try:
+            prompt = f"""User's goal: {user_query}
 
 Rate each candidate's network value and influence (0-1):
 {self._format_candidates_with_centrality(candidates)}
 
 Return only numbers, one per line."""
-        
-        response = await client.chat.completions.create(
-            model=settings.openai_chat_model,
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.3
-        )
-        
-        return self._parse_scores(response.choices[0].message.content, len(candidates))
+            
+            response = await client.chat.completions.create(
+                model=settings.openai_chat_model,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.3
+            )
+            
+            return self._parse_scores(response.choices[0].message.content, len(candidates))
+        except Exception:
+            return [0.5] * len(candidates)
     
     def _format_candidates(self, candidates: List[Dict]) -> str:
         lines = []

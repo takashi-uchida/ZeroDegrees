@@ -11,36 +11,44 @@ import sys
 
 async def build_graph():
     """既存のPersonデータからグラフを構築"""
-    print("Building Human Knowledge Graph...")
-    async with async_session_maker() as session:
-        builder = GraphBuilder(session)
-        await builder.build_from_people()
-    print("✓ Graph built successfully")
+    try:
+        print("Building Human Knowledge Graph...")
+        async with async_session_maker() as session:
+            builder = GraphBuilder(session)
+            await builder.build_from_people()
+        print("✓ Graph built successfully")
+    except Exception as e:
+        print(f"✗ Graph build failed: {e}")
+        sys.exit(1)
 
 
 async def search(query: str):
     """軌道マッチング検索を実行"""
-    print(f"\n🔍 Query: {query}\n")
-    
-    embedding = await get_embedding(query)
-    
-    async with async_session_maker() as session:
-        repo = GraphRepository(session)
-        matches = await repo.find_trajectory_matches(query, embedding, limit=3)
+    try:
+        print(f"\n🔍 Query: {query}\n")
         
-        if not matches:
-            print("No matches found. Try building the graph first: python -m graph.trajectory_cli build")
-            return
+        embedding = await get_embedding(query)
         
-        print(f"Found {len(matches)} matches:\n")
-        
-        for i, match in enumerate(matches, 1):
-            print(f"{i}. {match.name} ({match.role})")
-            print(f"   Score: {match.similarity_score:.3f}")
-            print(f"   {match.reasoning}")
-            print(f"   Evidence: {', '.join(match.evidence[:2])}")
-            print(f"   First question: {match.first_question}")
-            print()
+        async with async_session_maker() as session:
+            repo = GraphRepository(session)
+            matches = await repo.find_trajectory_matches(query, embedding, limit=3)
+            
+            if not matches:
+                print("No matches found. Try building the graph first: python -m graph.trajectory_cli build")
+                return
+            
+            print(f"Found {len(matches)} matches:\n")
+            
+            for i, match in enumerate(matches, 1):
+                print(f"{i}. {match.name} ({match.role})")
+                print(f"   Score: {match.similarity_score:.3f}")
+                print(f"   {match.reasoning}")
+                print(f"   Evidence: {', '.join(match.evidence[:2])}")
+                print(f"   First question: {match.first_question}")
+                print()
+    except Exception as e:
+        print(f"✗ Search failed: {e}")
+        sys.exit(1)
 
 
 async def main():

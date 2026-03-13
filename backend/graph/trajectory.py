@@ -81,11 +81,17 @@ class TrajectoryMatcher:
             return 0.0
         
         user_vec = np.array(user_embedding)
-        similarities = []
+        user_norm = np.linalg.norm(user_vec)
+        if user_norm == 0:
+            return 0.0
         
+        similarities = []
         for problem in problems:
             problem_vec = np.array(problem.embedding)
-            cos_sim = np.dot(user_vec, problem_vec) / (np.linalg.norm(user_vec) * np.linalg.norm(problem_vec))
+            problem_norm = np.linalg.norm(problem_vec)
+            if problem_norm == 0:
+                continue
+            cos_sim = np.dot(user_vec, problem_vec) / (user_norm * problem_norm)
             similarities.append(max(0, cos_sim))
         
         return max(similarities) if similarities else 0.0
@@ -96,7 +102,7 @@ class TrajectoryMatcher:
             (GraphEdge.source_id == node.id) | (GraphEdge.target_id == node.id)
         )
         count = (await self.session.execute(stmt)).scalar()
-        return min(count / 20.0, 1.0)
+        return min((count or 0) / 20.0, 1.0)
     
     async def find_path(self, from_node_id: str, to_node_id: str, max_depth: int = 3) -> List[Dict]:
         """BFSで最短パスを探索"""
