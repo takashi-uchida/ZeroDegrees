@@ -1,0 +1,608 @@
+'use client';
+
+import { useEffect, useRef, useState } from 'react';
+import * as d3 from 'd3';
+import { Edge, Node } from '@/types/graph';
+import { SearchState } from '@/types/search';
+import { VisualizationMode } from '@/types/ui';
+
+interface SimulationNode extends d3.SimulationNodeDatum, Node {}
+
+interface SimulationLink extends d3.SimulationLinkDatum<SimulationNode> {
+  id: string;
+  source: string | SimulationNode;
+  target: string | SimulationNode;
+  strength: number;
+  type: Edge['type'];
+  metadata: Edge['metadata'];
+}
+
+interface GraphCanvasProps {
+  nodes: Node[];
+  edges: Edge[];
+  focusNodeId?: string;
+  selectedNodeId?: string;
+  activePathNodeIds?: string[];
+  activePathEdgeIds?: string[];
+  hoveredEdgeId?: string;
+  visualizationMode?: VisualizationMode;
+  showDistanceMetrics?: boolean;
+  onNodeClick?: (nodeId: string) => void;
+  onEdgeHover?: (edgeId?: string) => void;
+  searchState?: SearchState;
+  width?: number;
+  height?: number;
+}
+
+const NODE_COLORS = {
+  user: '#7dd3fc',
+  future_self: '#6ee7b7',
+  comrade: '#38bdf8',
+  guide: '#fcd34d',
+};
+
+const NODE_RADIUS = 10;
+const CANVAS_THRESHOLD = 100;
+
+function getHeatColor(distance: number, maxDistance: number) {
+  const scale = d3
+    .scaleLinear<string>()
+    .domain([0, Math.max(1, maxDistance / 2), Math.max(1, maxDistance)])
+    .range(['#7dd3fc', '#818cf8', '#fb7185']);
+
+  return scale(distance);
+}
+
+function resolveLinkedNode(
+  nodeRef: string | SimulationNode,
+  nodes: SimulationNode[]
+): SimulationNode | undefined {
+  if (typeof nodeRef === 'string') {
+    return nodes.find((graphNode) => graphNode.id === nodeRef);
+  }
+
+  return nodeRef;
+}
+
+function getLinkedNodeId(nodeRef: string | SimulationNode): string {
+  return typeof nodeRef === 'string' ? nodeRef : nodeRef.id;
+}
+
+export default function GraphCanvas({
+  nodes,
+  edges,
+  focusNodeId,
+  selectedNodeId,
+  activePathNodeIds = [],
+  activePathEdgeIds = [],
+  hoveredEdgeId,
+  visualizationMode = 'concentric',
+  showDistanceMetrics = true,
+  onNodeClick,
+  onEdgeHover,
+  searchState = 'idle',
+  width = 960,
+  height = 720,
+}: GraphCanvasProps) {
+  const svgRef = useRef<SVGSVGElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [useCanvas, setUseCanvas] = useState(false);
+  const [transform, setTransform] = useState({ x: 0, y: 0, k: 1 });
+
+  const pathNodeSet = new Set(activePathNodeIds);
+  const pathEdgeSet = new Set(activePathEdgeIds);
+  const maxDistance = Math.max(...nodes.map((node) => node.distance), 1);
+
+  const getNeighborIds = (nodeId: string) => {
+    const neighbors = new Set<string>();
+    edges.forEach((edge) => {
+      if (edge.source === nodeId) {
+        neighbors.add(edge.target);
+      }
+      if (edge.target === nodeId) {
+        neighbors.add(edge.source);
+      }
+    });
+    return neighbors;
+  };
+
+  const selectedNeighborSet = selectedNodeId ? getNeighborIds(selectedNodeId) : new Set<string>();
+
+  const isNodeHighlighted = (nodeId: string) => {
+    if (selectedNodeId) {
+      return nodeId === selectedNodeId || selectedNeighborSet.has(nodeId);
+    }
+
+    return pathNodeSet.has(nodeId);
+  };
+
+  const isEdgeHighlighted = (edge: Pick<SimulationLink, 'id' | 'source' | 'target'>) => {
+    if (hoveredEdgeId && edge.id === hoveredEdgeId) {
+      return true;
+    }
+
+    if (selectedNodeId) {
+      const sourceId = getLinkedNodeId(edge.source);
+      const targetId = getLinkedNodeId(edge.target);
+      const sourceActive =
+        sourceId === selectedNodeId && selectedNeighborSet.has(targetId);
+      const targetActive =
+        targetId === selectedNodeId && selectedNeighborSet.has(sourceId);
+      return sourceActive || targetActive;
+    }
+
+    return pathEdgeSet.has(edge.id);
+  };
+
+  const getNodeFill = (node: Node) => {
+    if (visualizationMode === 'heatmap') {
+      return getHeatColor(node.distance, maxDistance);
+    }
+
+    return NODE_COLORS[node.type];
+  };
+
+  useEffect(() => {
+    setUseCanvas(nodes.length > CANVAS_THRESHOLD);
+  }, [nodes.length]);
+
+  useEffect(() => {
+    if (!nodes.length) {
+      return;
+    }
+
+    if (useCanvas && canvasRef.current) {
+      const cleanup = renderCanvas();
+      return cleanup;
+    }
+
+    if (!useCanvas && svgRef.current) {
+      const cleanup = renderSvg();
+      return cleanup;
+    }
+  }, [
+    activePathEdgeIds.join(','),
+    activePathNodeIds.join(','),
+    edges,
+    focusNodeId,
+    height,
+    hoveredEdgeId,
+    nodes,
+    searchState,
+    selectedNodeId,
+    showDistanceMetrics,
+    useCanvas,
+    visualizationMode,
+    width,
+  ]);
+
+  const renderSvg = () => {
+    if (!svgRef.current) return undefined;
+
+    const svg = d3.select(svgRef.current);
+    svg.selectAll('*').remove();
+
+    const nodesCopy: SimulationNode[] = nodes.map((node) => ({ ...node }));
+    const edgesCopy: SimulationLink[] = edges.map((edge) => ({ ...edge }));
+
+    const layer = svg.append('g');
+
+    const zoom = d3
+      .zoom<SVGSVGElement, unknown>()
+      .scaleExtent([0.5, 3])
+      .translateExtent([
+        [-480, -480],
+        [width + 480, height + 480],
+      ])
+      .on('zoom', (event) => {
+        layer.attr('transform', event.transform);
+        setTransform({
+          x: event.transform.x,
+          y: event.transform.y,
+          k: event.transform.k,
+        });
+      });
+
+    svg.call(zoom);
+
+    if (transform.k !== 1 || transform.x !== 0 || transform.y !== 0) {
+      svg.call(
+        zoom.transform,
+        d3.zoomIdentity.translate(transform.x, transform.y).scale(transform.k)
+      );
+    }
+
+    const simulation = d3
+      .forceSimulation<SimulationNode>(nodesCopy)
+      .force(
+        'link',
+        d3
+          .forceLink<SimulationNode, SimulationLink>(edgesCopy)
+          .id((d) => d.id)
+          .distance((edge) => {
+            if (visualizationMode === 'concentric') {
+              return 88 + edge.strength * 30;
+            }
+
+            return 84;
+          })
+          .strength((edge) => edge.strength)
+      )
+      .force('charge', d3.forceManyBody().strength(-220))
+      .force('center', d3.forceCenter(width / 2, height / 2))
+      .force('collision', d3.forceCollide().radius(30));
+
+    const ringLayer = layer.append('g');
+    const rings = ringLayer
+      .selectAll('circle')
+      .data([1, 2, 3, 4])
+      .enter()
+      .append('circle')
+      .attr('fill', 'none')
+      .attr('stroke', '#334155')
+      .attr('stroke-opacity', visualizationMode === 'concentric' ? 0.5 : 0)
+      .attr('stroke-dasharray', '6 8')
+      .attr('stroke-width', 1)
+      .attr('r', (distance) => 92 * distance);
+
+    const link = layer
+      .append('g')
+      .selectAll('line')
+      .data(edgesCopy)
+      .enter()
+      .append('line')
+      .attr('stroke', (edge) => {
+        if (edge.id === hoveredEdgeId) return '#f8fafc';
+        if (isEdgeHighlighted(edge)) return '#7dd3fc';
+        return '#334155';
+      })
+      .attr('stroke-opacity', (edge) => {
+        if (visualizationMode === 'path' && pathEdgeSet.size > 0) {
+          return pathEdgeSet.has(edge.id) ? 1 : 0.12;
+        }
+        if (selectedNodeId || pathEdgeSet.size > 0) {
+          return isEdgeHighlighted(edge) ? 0.95 : 0.2;
+        }
+        return 0.55;
+      })
+      .attr('stroke-width', (edge) => {
+        if (isEdgeHighlighted(edge)) return Math.max(2.5, edge.strength * 4.5);
+        return Math.max(1, edge.strength * 2.8);
+      })
+      .attr('stroke-dasharray', (edge) =>
+        visualizationMode === 'path' && pathEdgeSet.has(edge.id) ? '0' : '0'
+      )
+      .style('cursor', 'pointer')
+      .on('mouseenter', (_event, edge) => onEdgeHover?.(edge.id))
+      .on('mouseleave', () => onEdgeHover?.(undefined));
+
+    const node = layer
+      .append('g')
+      .selectAll('g')
+      .data(nodesCopy)
+      .enter()
+      .append('g')
+      .style('cursor', 'pointer')
+      .call(
+        d3
+          .drag<any, any>()
+          .on('start', (event, draggedNode) => {
+            if (!event.active) simulation.alphaTarget(0.3).restart();
+            draggedNode.fx = draggedNode.x;
+            draggedNode.fy = draggedNode.y;
+          })
+          .on('drag', (event, draggedNode) => {
+            draggedNode.fx = event.x;
+            draggedNode.fy = event.y;
+          })
+          .on('end', (event, draggedNode) => {
+            if (!event.active) simulation.alphaTarget(0);
+            draggedNode.fx = null;
+            draggedNode.fy = null;
+          })
+      );
+
+    node
+      .append('circle')
+      .attr('r', (graphNode) => {
+        if (graphNode.id === selectedNodeId) return NODE_RADIUS * 1.7;
+        if (pathNodeSet.has(graphNode.id)) return NODE_RADIUS * 1.35;
+        return NODE_RADIUS;
+      })
+      .attr('fill', (graphNode) => getNodeFill(graphNode))
+      .attr('fill-opacity', (graphNode) => {
+        if (selectedNodeId && !isNodeHighlighted(graphNode.id)) return 0.25;
+        if (visualizationMode === 'path' && pathNodeSet.size > 0 && !pathNodeSet.has(graphNode.id)) {
+          return 0.28;
+        }
+        return 1;
+      })
+      .attr('stroke', (graphNode) => {
+        if (graphNode.id === selectedNodeId) return '#f8fafc';
+        if (graphNode.id === focusNodeId) return '#7dd3fc';
+        if (visualizationMode === 'heatmap') return NODE_COLORS[graphNode.type];
+        return '#f8fafc';
+      })
+      .attr('stroke-width', (graphNode) => {
+        if (graphNode.id === selectedNodeId) return 3;
+        if (pathNodeSet.has(graphNode.id)) return 2.5;
+        return 1.8;
+      })
+      .attr('filter', (graphNode) => {
+        if (graphNode.id === selectedNodeId) {
+          return 'drop-shadow(0 0 14px rgba(125, 211, 252, 0.7))';
+        }
+        if (pathNodeSet.has(graphNode.id)) {
+          return 'drop-shadow(0 0 10px rgba(148, 163, 184, 0.45))';
+        }
+        return 'none';
+      })
+      .on('click', (event, graphNode) => {
+        event.stopPropagation();
+        onNodeClick?.(graphNode.id);
+      });
+
+    node
+      .append('text')
+      .text((graphNode) => graphNode.label)
+      .attr('x', 0)
+      .attr('y', 26)
+      .attr('font-size', '11px')
+      .attr('font-weight', 600)
+      .attr('text-anchor', 'middle')
+      .attr('fill', '#e2e8f0')
+      .attr('fill-opacity', (graphNode) => {
+        if (selectedNodeId && !isNodeHighlighted(graphNode.id)) return 0.35;
+        return 1;
+      })
+      .attr('pointer-events', 'none');
+
+    if (showDistanceMetrics) {
+      node
+        .append('text')
+        .text((graphNode) =>
+          graphNode.id === 'user-1' ? 'You are here' : `${graphNode.distance} shifts`
+        )
+        .attr('x', 0)
+        .attr('y', -18)
+        .attr('font-size', '10px')
+        .attr('text-anchor', 'middle')
+        .attr('fill', '#94a3b8')
+        .attr('pointer-events', 'none');
+    }
+
+    simulation.on('tick', () => {
+      const userNode = nodesCopy.find((graphNode) => graphNode.type === 'user') as
+        | (Node & { x?: number; y?: number })
+        | undefined;
+
+      if (userNode?.x !== undefined && userNode?.y !== undefined) {
+        rings
+          .attr('cx', userNode.x)
+          .attr('cy', userNode.y)
+          .attr('stroke-opacity', visualizationMode === 'concentric' ? 0.45 : 0);
+      }
+
+      link
+        .attr('x1', (edge) => resolveLinkedNode(edge.source, nodesCopy)?.x ?? 0)
+        .attr('y1', (edge) => resolveLinkedNode(edge.source, nodesCopy)?.y ?? 0)
+        .attr('x2', (edge) => resolveLinkedNode(edge.target, nodesCopy)?.x ?? 0)
+        .attr('y2', (edge) => resolveLinkedNode(edge.target, nodesCopy)?.y ?? 0);
+
+      node.attr('transform', (graphNode: SimulationNode) => `translate(${graphNode.x},${graphNode.y})`);
+    });
+
+    return () => {
+      simulation.stop();
+    };
+  };
+
+  const renderCanvas = () => {
+    if (!canvasRef.current) return undefined;
+
+    const canvas = canvasRef.current;
+    const context = canvas.getContext('2d');
+    if (!context) return undefined;
+
+    canvas.width = width;
+    canvas.height = height;
+
+    const nodesCopy: SimulationNode[] = nodes.map((node) => ({ ...node }));
+    const edgesCopy: SimulationLink[] = edges.map((edge) => ({ ...edge }));
+
+    const simulation = d3
+      .forceSimulation<SimulationNode>(nodesCopy)
+      .force(
+        'link',
+        d3
+          .forceLink<SimulationNode, SimulationLink>(edgesCopy)
+          .id((d) => d.id)
+          .distance(82)
+          .strength((edge) => edge.strength)
+      )
+      .force('charge', d3.forceManyBody().strength(-220))
+      .force('center', d3.forceCenter(width / 2, height / 2))
+      .force('collision', d3.forceCollide().radius(28));
+
+    const zoom = d3
+      .zoom<HTMLCanvasElement, unknown>()
+      .scaleExtent([0.5, 3])
+      .translateExtent([
+        [-480, -480],
+        [width + 480, height + 480],
+      ])
+      .on('zoom', (event) => {
+        setTransform({
+          x: event.transform.x,
+          y: event.transform.y,
+          k: event.transform.k,
+        });
+        render();
+      });
+
+    d3.select(canvas).call(zoom);
+
+    const render = () => {
+      context.save();
+      context.clearRect(0, 0, width, height);
+      context.translate(transform.x, transform.y);
+      context.scale(transform.k, transform.k);
+
+      const userNode = nodesCopy.find((graphNode) => graphNode.type === 'user') as
+        | (Node & { x?: number; y?: number })
+        | undefined;
+      if (
+        visualizationMode === 'concentric' &&
+        userNode?.x !== undefined &&
+        userNode?.y !== undefined
+      ) {
+        [1, 2, 3, 4].forEach((distance) => {
+          context.beginPath();
+          context.setLineDash([6, 8]);
+          context.strokeStyle = 'rgba(148, 163, 184, 0.35)';
+          context.lineWidth = 1;
+          context.arc(userNode.x ?? 0, userNode.y ?? 0, 92 * distance, 0, Math.PI * 2);
+          context.stroke();
+        });
+        context.setLineDash([]);
+      }
+
+      edgesCopy.forEach((edge) => {
+        const sourceNode = resolveLinkedNode(edge.source, nodesCopy);
+        const targetNode = resolveLinkedNode(edge.target, nodesCopy);
+        if (!sourceNode || !targetNode) {
+          return;
+        }
+
+        context.beginPath();
+        context.strokeStyle = isEdgeHighlighted(edge) ? '#7dd3fc' : '#334155';
+        context.globalAlpha =
+          visualizationMode === 'path' && pathEdgeSet.size > 0
+            ? pathEdgeSet.has(edge.id)
+              ? 1
+              : 0.12
+            : isEdgeHighlighted(edge)
+              ? 0.95
+              : 0.3;
+        context.lineWidth = isEdgeHighlighted(edge)
+          ? Math.max(2.5, edge.strength * 4.5)
+          : Math.max(1, edge.strength * 2.6);
+        context.moveTo(sourceNode.x ?? 0, sourceNode.y ?? 0);
+        context.lineTo(targetNode.x ?? 0, targetNode.y ?? 0);
+        context.stroke();
+      });
+
+      nodesCopy.forEach((graphNode: SimulationNode) => {
+        const nodeX = graphNode.x ?? 0;
+        const nodeY = graphNode.y ?? 0;
+        const radius =
+          graphNode.id === selectedNodeId
+            ? NODE_RADIUS * 1.7
+            : pathNodeSet.has(graphNode.id)
+              ? NODE_RADIUS * 1.35
+              : NODE_RADIUS;
+
+        context.beginPath();
+        context.fillStyle = getNodeFill(graphNode);
+        context.globalAlpha =
+          selectedNodeId && !isNodeHighlighted(graphNode.id)
+            ? 0.25
+            : visualizationMode === 'path' && pathNodeSet.size > 0 && !pathNodeSet.has(graphNode.id)
+              ? 0.28
+              : 1;
+        context.arc(nodeX, nodeY, radius, 0, Math.PI * 2);
+        context.fill();
+
+        context.globalAlpha = 1;
+        context.strokeStyle =
+          visualizationMode === 'heatmap' ? NODE_COLORS[graphNode.type] : '#f8fafc';
+        context.lineWidth = graphNode.id === selectedNodeId ? 3 : 2;
+        context.stroke();
+
+        context.fillStyle = '#e2e8f0';
+        context.font = '600 11px sans-serif';
+        context.textAlign = 'center';
+        context.fillText(graphNode.label, nodeX, nodeY + 26);
+
+        if (showDistanceMetrics) {
+          context.fillStyle = '#94a3b8';
+          context.font = '10px sans-serif';
+          context.fillText(
+            graphNode.id === 'user-1' ? 'You are here' : `${graphNode.distance} shifts`,
+            nodeX,
+            nodeY - 18
+          );
+        }
+      });
+
+      context.restore();
+    };
+
+    simulation.on('tick', render);
+
+    const handleClick = (event: MouseEvent) => {
+      const rect = canvas.getBoundingClientRect();
+      const x = (event.clientX - rect.left - transform.x) / transform.k;
+      const y = (event.clientY - rect.top - transform.y) / transform.k;
+
+      const clickedNode = nodesCopy.find((graphNode: SimulationNode) => {
+        const dx = x - (graphNode.x ?? 0);
+        const dy = y - (graphNode.y ?? 0);
+        return Math.sqrt(dx * dx + dy * dy) <= NODE_RADIUS * 1.8;
+      });
+
+      if (clickedNode) {
+        onNodeClick?.(clickedNode.id);
+      }
+    };
+
+    canvas.addEventListener('click', handleClick);
+
+    return () => {
+      simulation.stop();
+      canvas.removeEventListener('click', handleClick);
+    };
+  };
+
+  return (
+    <div
+      className="relative overflow-hidden rounded-[28px] border border-white/10 bg-[#07111F]"
+      style={{ width, height }}
+    >
+      <div
+        aria-hidden="true"
+        className="absolute inset-0 opacity-80"
+        style={{
+          backgroundImage:
+            'radial-gradient(circle at 20% 20%, rgba(56, 189, 248, 0.15), transparent 22%), radial-gradient(circle at 80% 12%, rgba(34, 197, 94, 0.12), transparent 18%), linear-gradient(rgba(255,255,255,0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.04) 1px, transparent 1px)',
+          backgroundSize: 'auto, auto, 24px 24px, 24px 24px',
+        }}
+      />
+
+      {!useCanvas ? (
+        <svg ref={svgRef} width={width} height={height} className="relative z-10" />
+      ) : (
+        <canvas ref={canvasRef} className="relative z-10" />
+      )}
+
+      {searchState === 'searching' && (
+        <div className="absolute inset-x-6 bottom-6 z-20 rounded-full border border-sky-300/20 bg-slate-950/80 px-5 py-3 backdrop-blur-sm">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <span className="relative flex h-3 w-3">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-sky-300 opacity-75" />
+                <span className="relative inline-flex h-3 w-3 rounded-full bg-sky-300" />
+              </span>
+              <p className="text-sm font-medium text-slate-100">
+                Tracing the shortest trusted route through the graph...
+              </p>
+            </div>
+            <p className="text-xs uppercase tracking-[0.22em] text-slate-400">
+              {visualizationMode}
+            </p>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
