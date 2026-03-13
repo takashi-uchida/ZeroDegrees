@@ -35,19 +35,19 @@ export default function QueryForm({ onSubmit, isLoading }: {
   }
 
   return (
-    <div className="w-full space-y-4">
+    <div className="w-full space-y-3 sm:space-y-4">
       {/* Demo Scenarios */}
-      <div className="rounded-3xl border border-slate-200 bg-white/90 p-6 shadow-sm">
+      <div className="rounded-2xl border border-slate-200 bg-white/90 p-4 shadow-sm sm:rounded-3xl sm:p-6">
         <p className="text-xs uppercase tracking-[0.25em] text-slate-400">Demo scenarios</p>
-        <h3 className="mt-2 text-lg font-semibold text-slate-900">Try a founder situation</h3>
-        <div className="mt-4 grid gap-2 md:grid-cols-3">
+        <h3 className="mt-1.5 text-base font-semibold text-slate-900 sm:mt-2 sm:text-lg">Try a founder situation</h3>
+        <div className="mt-3 grid gap-2 sm:mt-4 md:grid-cols-3">
           {DEMO_SCENARIOS.map((scenario, i) => (
             <button
               key={i}
               type="button"
               onClick={() => handleScenarioClick(scenario.query)}
               disabled={isLoading}
-              className="rounded-2xl border border-slate-200 px-4 py-3 text-left text-sm font-medium text-slate-700 transition hover:border-sky-200 hover:bg-sky-50 hover:text-sky-700 disabled:cursor-not-allowed disabled:opacity-50"
+              className="rounded-xl border border-slate-200 px-3 py-2.5 text-left text-sm font-medium text-slate-700 transition hover:border-sky-200 hover:bg-sky-50 hover:text-sky-700 disabled:cursor-not-allowed disabled:opacity-50 sm:rounded-2xl sm:px-4 sm:py-3"
             >
               {scenario.title}
             </button>
@@ -57,10 +57,10 @@ export default function QueryForm({ onSubmit, isLoading }: {
 
       {/* Query Form */}
       <form onSubmit={handleSubmit}>
-        <div className="rounded-3xl border border-slate-200 bg-white/90 p-6 shadow-sm">
+        <div className="rounded-2xl border border-slate-200 bg-white/90 p-4 shadow-sm sm:rounded-3xl sm:p-6">
           <p className="text-xs uppercase tracking-[0.25em] text-slate-400">Describe your situation</p>
-          <h3 className="mt-2 text-2xl font-semibold text-slate-900">Find the one person you need next</h3>
-          <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
+          <h3 className="mt-1.5 text-xl font-semibold text-slate-900 sm:mt-2 sm:text-2xl">Find the one person you need next</h3>
+          <p className="mt-2 max-w-3xl text-xs leading-6 text-slate-600 sm:text-sm">
             ZeroDegrees will map your current blocker, then return your Future Self, Comrade, and Guide,
             plus the first outreach message you can actually send.
           </p>
@@ -68,13 +68,13 @@ export default function QueryForm({ onSubmit, isLoading }: {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="I want to start an AI SaaS company but I don't have an engineering co-founder..."
-            className="mt-5 h-36 w-full resize-none rounded-2xl border border-slate-300 bg-slate-50 p-4 text-slate-900 focus:border-sky-500 focus:ring-2 focus:ring-sky-200"
+            className="mt-4 h-32 w-full resize-none rounded-xl border border-slate-300 bg-slate-50 p-3 text-sm text-slate-900 focus:border-sky-500 focus:ring-2 focus:ring-sky-200 sm:mt-5 sm:h-36 sm:rounded-2xl sm:p-4"
             disabled={isLoading}
           />
           <button
             type="submit"
             disabled={isLoading || !query.trim()}
-            className="mt-4 w-full rounded-2xl bg-slate-950 px-6 py-3 font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-400"
+            className="mt-3 w-full rounded-xl bg-slate-950 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-400 sm:mt-4 sm:rounded-2xl sm:px-6 sm:py-3"
           >
             {isLoading ? (
               <span className="flex items-center justify-center">

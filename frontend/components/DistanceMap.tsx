@@ -68,7 +68,7 @@ export default function DistanceMap({
   const peopleById = Object.fromEntries(orderedPeople.map((person) => [person.person_id, person]))
 
   return (
-    <section className="relative overflow-hidden rounded-[32px] border border-white/10 bg-[#07111F] p-6 text-white shadow-[0_30px_120px_rgba(2,6,23,0.45)] md:p-8">
+    <section className="relative overflow-hidden rounded-2xl border border-white/10 bg-[#07111F] p-4 text-white shadow-[0_30px_120px_rgba(2,6,23,0.45)] sm:rounded-[32px] sm:p-6 md:p-8">
       <div
         aria-hidden="true"
         className="absolute inset-0 opacity-90"
@@ -89,20 +89,213 @@ export default function DistanceMap({
       />
 
       <div className="relative">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <div className="flex flex-col gap-3 sm:gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <p className="text-xs uppercase tracking-[0.3em] text-sky-200/80">Your current distance</p>
-            <h2 className="mt-3 text-3xl font-semibold tracking-tight text-white md:text-4xl">
+            <h2 className="mt-2 text-2xl font-semibold tracking-tight text-white sm:mt-3 sm:text-3xl md:text-4xl">
               From where you are now to the people who can move you forward.
             </h2>
           </div>
-          <p className="max-w-2xl text-sm leading-7 text-slate-300">
+          <p className="max-w-2xl text-xs leading-6 text-slate-300 sm:text-sm sm:leading-7">
             This is not a results list. It is a field map of who has already solved your problem,
             who is living it with you, and who can unlock the next step.
           </p>
         </div>
 
-        <div className="relative mt-8 grid gap-6 lg:grid-cols-[320px_minmax(120px,1fr)_minmax(0,440px)]">
+        <div className="relative mt-6 grid gap-4 sm:mt-8 sm:gap-6 lg:grid-cols-[320px_minmax(120px,1fr)_minmax(0,440px)]">
+          <div className="rounded-2xl border border-white/10 bg-white/[0.06] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] backdrop-blur-sm sm:rounded-[28px] sm:p-5">
+            <p className="text-xs uppercase tracking-[0.25em] text-slate-400">You are here</p>
+
+            <div className="mt-4 flex items-center gap-3 sm:mt-6 sm:gap-4">
+              <div className="relative flex h-12 w-12 shrink-0 items-center justify-center sm:h-14 sm:w-14">
+                <span className="absolute inset-0 rounded-full bg-sky-400/20 blur-md" />
+                <span className="absolute h-10 w-10 rounded-full border border-sky-300/30 animate-pulse sm:h-12 sm:w-12" />
+                <span className="relative h-4 w-4 rounded-full bg-sky-300 shadow-[0_0_30px_rgba(125,211,252,0.8)] sm:h-5 sm:w-5" />
+              </div>
+
+              <div>
+                <p className="text-xs uppercase tracking-[0.2em] text-sky-200/80">Origin node</p>
+                <h3 className="mt-1 text-xl font-semibold leading-tight text-white sm:mt-2 sm:text-2xl">
+                  {currentState.summary}
+                </h3>
+              </div>
+            </div>
+
+            <div className="mt-4 grid gap-2 sm:mt-6 sm:gap-3">
+              <div className="rounded-xl border border-white/10 bg-black/20 p-3 sm:rounded-2xl sm:p-4">
+                <p className="text-[11px] uppercase tracking-[0.25em] text-slate-500">
+                  Primary blocker
+                </p>
+                <p className="mt-1.5 text-xs leading-5 text-slate-100 sm:mt-2 sm:text-sm sm:leading-6">{currentState.blocker}</p>
+              </div>
+
+              <div className="rounded-xl border border-white/10 bg-black/20 p-3 sm:rounded-2xl sm:p-4">
+                <p className="text-[11px] uppercase tracking-[0.25em] text-slate-500">
+                  Desired next step
+                </p>
+                <p className="mt-1.5 text-xs leading-5 text-slate-100 sm:mt-2 sm:text-sm sm:leading-6">
+                  {currentState.desiredNextStep}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="hidden lg:flex flex-col justify-around py-4">
+            {orderedPeople.map((person) => {
+              const meta = ROLE_META[person.role]
+              const isActive = activeRole === person.role
+
+              return (
+                <div key={person.person_id} className="flex items-center gap-4">
+                  <div className="relative flex h-5 w-5 shrink-0 items-center justify-center">
+                    <span
+                      className={`absolute h-5 w-5 rounded-full ${meta.dot} transition-opacity duration-300 ${
+                        isActive ? 'opacity-100' : 'opacity-70'
+                      }`}
+                    />
+                    <span className="absolute h-9 w-9 rounded-full border border-white/10" />
+                  </div>
+
+                  <div className="relative h-px flex-1 overflow-hidden rounded-full bg-white/10">
+                    <div
+                      className={`absolute inset-y-0 left-0 rounded-full bg-gradient-to-r ${meta.lineGlow} transition-all duration-300 ${
+                        isActive ? 'w-full opacity-100' : 'w-3/4 opacity-55'
+                      }`}
+                    />
+                  </div>
+
+                  <span
+                    className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition duration-300 ${meta.badge} ${
+                      isActive ? 'scale-100 opacity-100' : 'scale-[0.98] opacity-80'
+                    }`}
+                  >
+                    {person.distance_label ?? 'Meaningful path'}
+                  </span>
+                </div>
+              )
+            })}
+          </div>
+
+          <div className="relative space-y-3 sm:space-y-4">
+            <div className="absolute bottom-3 left-[11px] top-3 w-px bg-gradient-to-b from-white/0 via-white/15 to-white/0 lg:hidden" />
+
+            {orderedPeople.map((person) => {
+              const meta = ROLE_META[person.role]
+              const isActive = activeRole === person.role
+
+              return (
+                <article
+                  key={person.person_id}
+                  tabIndex={0}
+                  onMouseEnter={() => setActiveRole(person.role)}
+                  onFocus={() => setActiveRole(person.role)}
+                  className={`group relative rounded-2xl border p-4 pl-7 transition duration-300 sm:rounded-[28px] sm:p-5 sm:pl-8 lg:pl-5 ${
+                    isActive
+                      ? 'border-white/20 bg-white/[0.1] shadow-[0_22px_60px_rgba(15,23,42,0.35)]'
+                      : 'border-white/10 bg-white/[0.06] shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]'
+                  } focus:outline-none focus:ring-2 focus:ring-white/20`}
+                >
+                  <span
+                    className={`absolute left-[6px] top-8 h-3 w-3 rounded-full sm:top-10 lg:hidden ${meta.dot}`}
+                  />
+
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+                    <div>
+                      <p className={`text-xs uppercase tracking-[0.25em] ${meta.pill}`}>
+                        {meta.title}
+                      </p>
+                      <p className="mt-1 text-xs text-slate-400 sm:mt-2 sm:text-sm">{meta.eyebrow}</p>
+                    </div>
+                    <span className={`self-start rounded-full border px-2.5 py-1 text-xs font-medium sm:px-3 ${meta.badge}`}>
+                      {person.distance_label ?? 'Meaningful path'}
+                    </span>
+                  </div>
+
+                  <div className="mt-4 sm:mt-5">
+                    <h3 className="text-xl font-semibold tracking-tight text-white sm:text-2xl">
+                      {person.name}
+                    </h3>
+                    <p className="mt-1.5 text-xs leading-5 text-slate-400 sm:mt-2 sm:text-sm sm:leading-6">{person.bio}</p>
+                    <p className="mt-3 text-xs leading-6 text-slate-100 sm:mt-4 sm:text-sm sm:leading-7">
+                      {summarizeReasoning(person.reasoning)}
+                    </p>
+                  </div>
+
+                  <div className="mt-4 sm:mt-5">
+                    <p className="text-[11px] uppercase tracking-[0.25em] text-slate-500">Proof</p>
+                    <div className="mt-2 flex flex-wrap gap-2 sm:mt-3">
+                      {person.evidence.slice(0, 2).map((item) => (
+                        <span
+                          key={item}
+                          className={`rounded-full border px-2.5 py-1.5 text-xs leading-5 sm:px-3 sm:py-2 ${meta.chip}`}
+                        >
+                          {item}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="mt-4 rounded-xl border border-white/10 bg-black/20 p-3 sm:mt-5 sm:rounded-2xl sm:p-4">
+                    <p className="text-[11px] uppercase tracking-[0.25em] text-slate-500">
+                      Ask first
+                    </p>
+                    <p className="mt-1.5 text-xs font-medium leading-5 text-white sm:mt-2 sm:text-sm sm:leading-6">
+                      {person.first_question ?? 'What would you ask them first?'}
+                    </p>
+                  </div>
+                </article>
+              )
+            })}
+          </div>
+        </div>
+
+        {actionPlan.length > 0 && (
+          <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.06] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] sm:mt-6 sm:rounded-[28px]">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+              <div className="max-w-sm">
+                <p className="text-xs uppercase tracking-[0.25em] text-slate-400">
+                  Your next move this week
+                </p>
+                <h3 className="mt-1.5 text-xl font-semibold tracking-tight text-white sm:mt-2 sm:text-2xl">
+                  Turn the map into motion.
+                </h3>
+              </div>
+
+              <div className="grid flex-1 gap-2 sm:gap-3 md:grid-cols-3">
+                {actionPlan.slice(0, 3).map((item, index) => {
+                  const targetPerson = item.target_person_id
+                    ? peopleById[item.target_person_id]
+                    : undefined
+
+                  return (
+                    <div
+                      key={`${item.title}-${index}`}
+                      className="rounded-xl border border-white/10 bg-black/20 p-3 sm:rounded-2xl sm:p-4"
+                    >
+                      <div className="flex items-center gap-2 sm:gap-3">
+                        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white text-xs font-semibold text-slate-950 sm:h-8 sm:w-8">
+                          {index + 1}
+                        </div>
+                        <div>
+                          <p className="text-xs font-semibold text-white sm:text-sm">
+                            {targetPerson?.name ?? item.title}
+                          </p>
+                          <p className="text-[10px] uppercase tracking-[0.2em] text-slate-500 sm:text-[11px]">
+                            {targetPerson ? ROLE_META[targetPerson.role].title : 'Action'}
+                          </p>
+                        </div>
+                      </div>
+                      <p className="mt-2 text-xs leading-5 text-slate-300 sm:mt-3 sm:text-sm sm:leading-6">{item.title}</p>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </section>
+  )
           <div className="rounded-[28px] border border-white/10 bg-white/[0.06] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] backdrop-blur-sm">
             <p className="text-xs uppercase tracking-[0.25em] text-slate-400">You are here</p>
 
