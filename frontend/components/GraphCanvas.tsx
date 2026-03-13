@@ -90,10 +90,43 @@ export default function GraphCanvas({
   const [useCanvas, setUseCanvas] = useState(false);
   const [transform, setTransform] = useState({ x: 0, y: 0, k: 1 });
   const { reducedMotion } = useAccessibility();
+  const [isMobile, setIsMobile] = useState(false);
+  const zoomBehaviorRef = useRef<d3.ZoomBehavior<any, unknown> | null>(null);
 
   const pathNodeSet = new Set(activePathNodeIds);
   const pathEdgeSet = new Set(activePathEdgeIds);
   const maxDistance = Math.max(...nodes.map((node) => node.distance), 1);
+
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 768);
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
+  const handleZoomIn = () => {
+    if (!zoomBehaviorRef.current) return;
+    const element = useCanvas ? canvasRef.current : svgRef.current;
+    if (element) {
+      d3.select(element).transition().duration(300).call(zoomBehaviorRef.current.scaleBy, 1.3);
+    }
+  };
+
+  const handleZoomOut = () => {
+    if (!zoomBehaviorRef.current) return;
+    const element = useCanvas ? canvasRef.current : svgRef.current;
+    if (element) {
+      d3.select(element).transition().duration(300).call(zoomBehaviorRef.current.scaleBy, 0.7);
+    }
+  };
+
+  const handleResetView = () => {
+    if (!zoomBehaviorRef.current) return;
+    const element = useCanvas ? canvasRef.current : svgRef.current;
+    if (element) {
+      d3.select(element).transition().duration(500).call(zoomBehaviorRef.current.transform, d3.zoomIdentity);
+    }
+  };
 
   const getNeighborIds = (nodeId: string) => {
     const neighbors = new Set<string>();
@@ -215,7 +248,7 @@ export default function GraphCanvas({
 
     const zoom = d3
       .zoom<SVGSVGElement, unknown>()
-      .scaleExtent([0.5, 3])
+      .scaleExtent([0.3, 4])
       .translateExtent([
         [-480, -480],
         [width + 480, height + 480],
@@ -230,6 +263,7 @@ export default function GraphCanvas({
       });
 
     svg.call(zoom);
+    zoomBehaviorRef.current = zoom;
 
     if (transform.k !== 1 || transform.x !== 0 || transform.y !== 0) {
       svg.call(
@@ -331,9 +365,10 @@ export default function GraphCanvas({
     node
       .append('circle')
       .attr('r', (graphNode) => {
-        if (graphNode.id === selectedNodeId) return NODE_RADIUS * 1.7;
-        if (pathNodeSet.has(graphNode.id)) return NODE_RADIUS * 1.35;
-        return NODE_RADIUS;
+        const baseRadius = isMobile ? NODE_RADIUS * 1.4 : NODE_RADIUS;
+        if (graphNode.id === selectedNodeId) return baseRadius * 1.7;
+        if (pathNodeSet.has(graphNode.id)) return baseRadius * 1.35;
+        return baseRadius;
       })
       .attr('fill', (graphNode) => getNodeFill(graphNode))
       .attr('fill-opacity', (graphNode) => {
@@ -452,7 +487,7 @@ export default function GraphCanvas({
 
     const zoom = d3
       .zoom<HTMLCanvasElement, unknown>()
-      .scaleExtent([0.5, 3])
+      .scaleExtent([0.3, 4])
       .translateExtent([
         [-480, -480],
         [width + 480, height + 480],
@@ -467,6 +502,7 @@ export default function GraphCanvas({
       });
 
     d3.select(canvas).call(zoom);
+    zoomBehaviorRef.current = zoom;
 
     const render = () => {
       context.save();
@@ -592,7 +628,7 @@ export default function GraphCanvas({
 
   return (
     <div
-      className="relative overflow-hidden rounded-[28px] border border-white/10 bg-[#07111F]"
+      className="relative overflow-hidden rounded-2xl border border-white/10 bg-[#07111F] sm:rounded-[28px]"
       style={{ width, height }}
       role="img"
       aria-label={`Graph visualization showing ${nodes.length} nodes and ${edges.length} connections. ${selectedNodeId ? `Node ${nodes.find(n => n.id === selectedNodeId)?.label} is selected.` : ''}`}
@@ -625,25 +661,58 @@ export default function GraphCanvas({
         />
       )}
 
+      {isMobile && (
+        <div className="absolute right-3 top-3 z-20 flex flex-col gap-2">
+          <button
+            onClick={handleZoomIn}
+            className="flex h-10 w-10 items-center justify-center rounded-full border border-white/20 bg-slate-950/80 text-white backdrop-blur-sm transition hover:bg-slate-900/90"
+            aria-label="Zoom in"
+          >
+            <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+          </button>
+          <button
+            onClick={handleZoomOut}
+            className="flex h-10 w-10 items-center justify-center rounded-full border border-white/20 bg-slate-950/80 text-white backdrop-blur-sm transition hover:bg-slate-900/90"
+            aria-label="Zoom out"
+          >
+            <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
+            </svg>
+          </button>
+          <button
+            onClick={handleResetView}
+            className="flex h-10 w-10 items-center justify-center rounded-full border border-white/20 bg-slate-950/80 text-white backdrop-blur-sm transition hover:bg-slate-900/90"
+            aria-label="Reset view"
+          >
+            <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+          </button>
+        </div>
+      )}
+
       {searchState === 'searching' && (
+<<<<<<< HEAD
         <div 
-          className="absolute inset-x-6 bottom-6 z-20 rounded-full border border-sky-300/20 bg-slate-950/80 px-5 py-3 backdrop-blur-sm"
+          className="absolute inset-x-3 bottom-3 z-20 rounded-full border border-sky-300/20 bg-slate-950/80 px-4 py-2.5 backdrop-blur-sm sm:inset-x-6 sm:bottom-6 sm:px-5 sm:py-3"
           role="status"
           aria-live="polite"
         >
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <span className="relative flex h-3 w-3" aria-hidden="true">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+            <div className="flex items-center gap-2 sm:gap-3">
+              <span className="relative flex h-3 w-3 shrink-0" aria-hidden="true">
                 {!reducedMotion && (
                   <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-sky-300 opacity-75" />
                 )}
                 <span className="relative inline-flex h-3 w-3 rounded-full bg-sky-300" />
               </span>
-              <p className="text-sm font-medium text-slate-100">
-                Tracing the shortest trusted route through the graph...
+              <p className="text-xs font-medium text-slate-100 sm:text-sm">
+                Tracing the shortest trusted route...
               </p>
             </div>
-            <p className="text-xs uppercase tracking-[0.22em] text-slate-400">
+            <p className="text-[10px] uppercase tracking-[0.22em] text-slate-400 sm:text-xs">
               {visualizationMode}
             </p>
           </div>

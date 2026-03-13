@@ -134,12 +134,12 @@ function Home() {
   }
 
   return (
-    <main id="main-content" className="min-h-screen bg-[linear-gradient(180deg,#f8fafc_0%,#eef6ff_45%,#f8fafc_100%)] px-6 py-10">
+    <main id="main-content" className="min-h-screen bg-[linear-gradient(180deg,#f8fafc_0%,#eef6ff_45%,#f8fafc_100%)] px-4 py-6 sm:px-6 sm:py-10">
       <div className="mx-auto max-w-[1400px]">
-        <header className="mb-12">
+        <header className="mb-8 sm:mb-12">
           <p className="text-xs uppercase tracking-[0.3em] text-sky-600">Distance-to-action engine</p>
-          <h1 className="mt-3 text-5xl font-semibold tracking-tight text-slate-950">ZeroDegrees</h1>
-          <p className="mt-4 max-w-3xl text-lg leading-8 text-slate-600">
+          <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950 sm:mt-3 sm:text-5xl">ZeroDegrees</h1>
+          <p className="mt-3 max-w-3xl text-base leading-7 text-slate-600 sm:mt-4 sm:text-lg sm:leading-8">
             Find your Future Self, Comrade, and Guide before momentum dies. ZeroDegrees maps the
             distance between where you are and who you need next, then prepares the first outreach
             message for you.
@@ -149,22 +149,22 @@ function Home() {
         <QueryForm onSubmit={handleDiscover} isLoading={isDiscovering} />
 
         {(isDiscovering || progress) && (
-          <div className="mt-8">
+          <div className="mt-6 sm:mt-8">
             <ProgressRail currentStep={progress} />
           </div>
         )}
 
         {error && (
-          <div className="mt-6 rounded-3xl border border-rose-200 bg-rose-50 p-5">
-            <p className="font-medium text-rose-700">Error: {error}</p>
-            <p className="mt-1 text-sm text-rose-600">
+          <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 p-4 sm:mt-6 sm:rounded-3xl sm:p-5">
+            <p className="text-sm font-medium text-rose-700 sm:text-base">Error: {error}</p>
+            <p className="mt-1 text-xs text-rose-600 sm:text-sm">
               Please check if the backend is running and the API keys are configured.
             </p>
             {lastQuery && (
               <button
                 type="button"
                 onClick={() => handleDiscover(lastQuery)}
-                className="mt-4 rounded-full bg-rose-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-rose-700"
+                className="mt-3 rounded-full bg-rose-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-rose-700 sm:mt-4"
               >
                 Retry
               </button>
@@ -173,7 +173,7 @@ function Home() {
         )}
 
         {result && (
-          <div className="mt-8 grid gap-8 lg:grid-cols-[minmax(0,1.45fr)_minmax(360px,0.88fr)]">
+          <div className="mt-6 space-y-6 sm:mt-8 lg:grid lg:grid-cols-[minmax(0,1.45fr)_minmax(360px,0.88fr)] lg:gap-8 lg:space-y-0">
             <div className="order-2 lg:order-1">
               <DistanceMap
                 currentState={{
@@ -185,7 +185,7 @@ function Home() {
               />
             </div>
 
-            <aside className="order-1 space-y-6 lg:order-2">
+            <aside className="order-1 space-y-4 sm:space-y-6 lg:order-2">
               <DecisionPanel
                 blocker={result.primary_blocker}
                 nextStep={result.desired_next_step}
@@ -201,18 +201,18 @@ function Home() {
         )}
 
         {events.length > 0 && (
-          <div className="mt-8">
-            <div className="flex items-center justify-between gap-4 rounded-3xl border border-slate-200 bg-white/90 p-4 shadow-sm">
+          <div className="mt-6 sm:mt-8">
+            <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white/90 p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:rounded-3xl">
               <div>
                 <p className="text-sm font-medium text-slate-900">Want the raw matching trace?</p>
-                <p className="text-sm text-slate-500">
+                <p className="mt-1 text-xs text-slate-500 sm:text-sm">
                   Open the reasoning log to inspect the internal matching steps.
                 </p>
               </div>
               <button
                 type="button"
                 onClick={() => setShowReasoning((prev) => !prev)}
-                className="rounded-full border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
+                className="w-full rounded-full border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100 sm:w-auto"
               >
                 {showReasoning ? 'Hide reasoning' : 'Show reasoning'}
               </button>
@@ -221,7 +221,7 @@ function Home() {
         )}
 
         {showReasoning && events.length > 0 && (
-          <div className="mt-6">
+          <div className="mt-4 sm:mt-6">
             <ReasoningLog events={events} />
           </div>
         )}

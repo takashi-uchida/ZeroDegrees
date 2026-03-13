@@ -1,5 +1,6 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import { TargetType } from '@/types/search';
 
 const TARGET_OPTIONS: Array<{
@@ -28,6 +29,36 @@ const EXAMPLE_PROMPTS = [
   },
 ];
 
+const DESTINY_MESSAGES = [
+  'Calculating your path...',
+  'Mapping the constellation...',
+  'Tracing the threads of connection...',
+  'Discovering hidden bridges...',
+  'Aligning the stars...',
+];
+
+const validateInput = (value: string): string | null => {
+  if (!value.trim()) return 'Please describe your challenge';
+  if (value.trim().length < 10) return 'Please provide more detail (at least 10 characters)';
+  if (value.trim().length > 500) return 'Please keep it under 500 characters';
+  return null;
+};
+
+const generateRefinements = (value: string): string[] => {
+  const refinements: string[] = [];
+  const lowerValue = value.toLowerCase();
+  if (value.length > 0 && !/industr|field|sector|domain/.test(lowerValue)) {
+    refinements.push('Consider adding your industry or field');
+  }
+  if (value.length > 0 && !/stage|position|level|phase/.test(lowerValue)) {
+    refinements.push('Mention your current stage or position');
+  }
+  if (value.length > 0 && value.length < 50) {
+    refinements.push('Add more context for better matches');
+  }
+  return refinements;
+};
+
 export default function SearchInput({
   value,
   targetType,
@@ -43,6 +74,49 @@ export default function SearchInput({
   onTargetTypeChange: (value: TargetType) => void;
   onSearch: () => void;
 }) {
+  const [validationError, setValidationError] = useState<string | null>(null);
+  const [refinements, setRefinements] = useState<string[]>([]);
+  const [messageIndex, setMessageIndex] = useState(0);
+
+  useEffect(() => {
+    if (!isSearching) {
+      setMessageIndex(0);
+      return;
+    }
+    const interval = setInterval(() => {
+      setMessageIndex((prev) => (prev + 1) % DESTINY_MESSAGES.length);
+    }, 2000);
+    return () => clearInterval(interval);
+  }, [isSearching]);
+
+  useEffect(() => {
+    setRefinements(generateRefinements(value));
+  }, [value]);
+
+  const handleSearch = () => {
+    const error = validateInput(value);
+    setValidationError(error);
+    if (!error) {
+      onSearch();
+    }
+  };
+
+  if (isSearching) {
+    return (
+      <section className="rounded-[30px] border border-slate-800 bg-slate-950/90 p-6 shadow-[0_20px_80px_rgba(2,6,23,0.3)]">
+        <div className="flex flex-col items-center justify-center py-12">
+          <div className="relative h-24 w-24">
+            <div className="absolute inset-0 animate-ping rounded-full bg-sky-300/20" />
+            <div className="absolute inset-2 animate-spin rounded-full border-4 border-slate-800 border-t-sky-300" />
+            <div className="absolute inset-6 animate-pulse rounded-full bg-sky-300/30" />
+          </div>
+          <p className="mt-6 text-lg font-semibold text-white">{DESTINY_MESSAGES[messageIndex]}</p>
+          <p className="mt-2 text-sm text-slate-400">This may take a moment</p>
+        </div>
+      </section>
+    );
+  }
+
   return (
     <section 
       className="rounded-[30px] border border-slate-800 bg-slate-950/90 p-6 shadow-[0_20px_80px_rgba(2,6,23,0.3)]"
@@ -77,18 +151,41 @@ export default function SearchInput({
       <textarea
         id="search-textarea"
         value={value}
-        onChange={(event) => onChange(event.target.value)}
+        onChange={(event) => {
+          onChange(event.target.value);
+          setValidationError(null);
+        }}
         placeholder="Describe the challenge, transition, or person-shaped gap you are trying to cross..."
-        className="mt-5 h-36 w-full resize-none rounded-3xl border border-slate-800 bg-slate-900 px-4 py-4 text-base leading-7 text-white placeholder:text-slate-500 focus:border-sky-300/40 focus:outline-none focus:ring-2 focus:ring-sky-300/10"
+        className={`mt-5 h-36 w-full resize-none rounded-3xl border px-4 py-4 text-base leading-7 text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 ${
+          validationError
+            ? 'border-red-500/40 bg-red-950/20 focus:border-red-400/40 focus:ring-red-400/10'
+            : 'border-slate-800 bg-slate-900 focus:border-sky-300/40 focus:ring-sky-300/10'
+        }`}
         aria-required="true"
-        aria-invalid={!value.trim()}
+        aria-invalid={!value.trim() || !!validationError}
       />
+
+      {validationError && (
+        <p className="mt-2 text-sm text-red-400">{validationError}</p>
+      )}
+
+      {!validationError && refinements.length > 0 && value.length > 0 && (
+        <div className="mt-3 rounded-2xl border border-amber-500/20 bg-amber-950/20 px-4 py-3">
+          <p className="text-xs font-semibold uppercase tracking-wider text-amber-300">Suggestions</p>
+          <ul className="mt-2 space-y-1">
+            {refinements.map((refinement, index) => (
+              <li key={index} className="text-sm text-amber-200/80">• {refinement}</li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       <fieldset className="mt-5">
         <legend className="sr-only">Select target type</legend>
         <div className="grid gap-3 sm:grid-cols-2" role="radiogroup">
           {TARGET_OPTIONS.map((option) => {
             const isActive = option.value === targetType;
+>>>>>>> origin/main
 
             return (
               <button
@@ -120,13 +217,12 @@ export default function SearchInput({
 
       <button
         type="button"
-        onClick={onSearch}
-        disabled={isSearching || !value.trim()}
+        onClick={handleSearch}
         className="mt-6 flex w-full items-center justify-center rounded-2xl bg-sky-300 px-4 py-3.5 text-sm font-semibold text-slate-950 transition hover:bg-sky-200 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-400"
         aria-label={isSearching ? 'Searching for route' : 'Start route mapping'}
         aria-busy={isSearching}
       >
-        {isSearching ? 'Mapping the route...' : 'Map the route'}
+        Calculate your destiny
       </button>
     </section>
   );
