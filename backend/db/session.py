@@ -11,9 +11,14 @@ async def get_session() -> AsyncSession:
     async with async_session_maker() as session:
         yield session
 
+async def get_db():
+    async with async_session_maker() as session:
+        yield session
+
 async def init_db():
     # Import models to register them with Base
     from db import models
+    from db import relationship_models
     
     async with engine.begin() as conn:
         await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
