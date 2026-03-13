@@ -5,6 +5,7 @@ import * as d3 from 'd3';
 import { Edge, Node } from '@/types/graph';
 import { SearchState } from '@/types/search';
 import { VisualizationMode } from '@/types/ui';
+import ConstellationParticles from './ConstellationParticles';
 
 interface SimulationNode extends d3.SimulationNodeDatum, Node {}
 
@@ -273,11 +274,12 @@ export default function GraphCanvas({
       .enter()
       .append('circle')
       .attr('fill', 'none')
-      .attr('stroke', '#334155')
-      .attr('stroke-opacity', visualizationMode === 'concentric' ? 0.5 : 0)
-      .attr('stroke-dasharray', '6 8')
-      .attr('stroke-width', 1)
-      .attr('r', (distance) => 92 * distance);
+      .attr('stroke', (d) => d === 1 ? '#7dd3fc' : '#334155')
+      .attr('stroke-opacity', (d) => visualizationMode === 'concentric' ? (d === 1 ? 0.6 : 0.45) : 0)
+      .attr('stroke-dasharray', (d) => d === 1 ? '4 6' : '6 8')
+      .attr('stroke-width', (d) => d === 1 ? 1.5 : 1)
+      .attr('r', (distance) => 92 * distance)
+      .style('filter', (d) => d === 1 ? 'drop-shadow(0 0 4px rgba(125, 211, 252, 0.3))' : 'none');
 
     const link = layer
       .append('g')
@@ -365,12 +367,15 @@ export default function GraphCanvas({
       })
       .attr('filter', (graphNode) => {
         if (graphNode.id === selectedNodeId) {
-          return 'drop-shadow(0 0 14px rgba(125, 211, 252, 0.7))';
+          return 'drop-shadow(0 0 16px rgba(125, 211, 252, 0.9)) drop-shadow(0 0 4px rgba(125, 211, 252, 0.6))';
         }
         if (pathNodeSet.has(graphNode.id)) {
-          return 'drop-shadow(0 0 10px rgba(148, 163, 184, 0.45))';
+          return 'drop-shadow(0 0 12px rgba(110, 231, 183, 0.6)) drop-shadow(0 0 3px rgba(110, 231, 183, 0.4))';
         }
-        return 'none';
+        if (graphNode.type === 'user') {
+          return 'drop-shadow(0 0 10px rgba(125, 211, 252, 0.5))';
+        }
+        return 'drop-shadow(0 0 6px rgba(148, 163, 184, 0.3))';
       })
       .on('click', (event, graphNode) => {
         event.stopPropagation();
@@ -415,7 +420,8 @@ export default function GraphCanvas({
         rings
           .attr('cx', userNode.x)
           .attr('cy', userNode.y)
-          .attr('stroke-opacity', visualizationMode === 'concentric' ? 0.45 : 0);
+          .attr('stroke', (d) => d === 1 ? '#7dd3fc' : '#334155')
+          .attr('stroke-opacity', (d) => visualizationMode === 'concentric' ? (d === 1 ? 0.6 : 0.45) : 0);
       }
 
       link
@@ -605,13 +611,14 @@ export default function GraphCanvas({
       className="relative overflow-hidden rounded-2xl border border-white/10 bg-[#07111F] sm:rounded-[28px]"
       style={{ width, height }}
     >
+      {/* Constellation background with stars */}
       <div
         aria-hidden="true"
-        className="absolute inset-0 opacity-80"
+        className="absolute inset-0 opacity-90"
         style={{
           backgroundImage:
-            'radial-gradient(circle at 20% 20%, rgba(56, 189, 248, 0.15), transparent 22%), radial-gradient(circle at 80% 12%, rgba(34, 197, 94, 0.12), transparent 18%), linear-gradient(rgba(255,255,255,0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.04) 1px, transparent 1px)',
-          backgroundSize: 'auto, auto, 24px 24px, 24px 24px',
+            'radial-gradient(circle at 20% 20%, rgba(56, 189, 248, 0.18), transparent 24%), radial-gradient(circle at 80% 12%, rgba(34, 197, 94, 0.14), transparent 20%), radial-gradient(1px 1px at 15% 35%, white, transparent), radial-gradient(1px 1px at 85% 65%, white, transparent), radial-gradient(1px 1px at 45% 80%, rgba(125, 211, 252, 0.8), transparent), radial-gradient(1px 1px at 70% 25%, rgba(110, 231, 183, 0.7), transparent), radial-gradient(2px 2px at 30% 60%, rgba(252, 211, 77, 0.6), transparent), linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px)',
+          backgroundSize: 'auto, auto, 100% 100%, 100% 100%, 100% 100%, 100% 100%, 100% 100%, 28px 28px, 28px 28px',
         }}
       />
 
@@ -654,21 +661,46 @@ export default function GraphCanvas({
       )}
 
       {searchState === 'searching' && (
-        <div className="absolute inset-x-3 bottom-3 z-20 rounded-full border border-sky-300/20 bg-slate-950/80 px-4 py-2.5 backdrop-blur-sm sm:inset-x-6 sm:bottom-6 sm:px-5 sm:py-3">
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-            <div className="flex items-center gap-2 sm:gap-3">
-              <span className="relative flex h-3 w-3 shrink-0">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-sky-300 opacity-75" />
-                <span className="relative inline-flex h-3 w-3 rounded-full bg-sky-300" />
-              </span>
-              <p className="text-xs font-medium text-slate-100 sm:text-sm">
-                Tracing the shortest trusted route...
+        <>
+          {/* Particle effects during search */}
+          <ConstellationParticles count={12} />
+          
+          {/* Search status banner */}
+          <div className="absolute inset-x-3 bottom-3 z-20 rounded-full border border-sky-300/20 bg-slate-950/80 px-4 py-2.5 backdrop-blur-sm sm:inset-x-6 sm:bottom-6 sm:px-5 sm:py-3">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+              <div className="flex items-center gap-2 sm:gap-3">
+                <span className="relative flex h-3 w-3 shrink-0">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-sky-300 opacity-75" />
+                  <span className="relative inline-flex h-3 w-3 rounded-full bg-sky-300" />
+                </span>
+                <p className="text-xs font-medium text-slate-100 sm:text-sm">
+                  Calculating your destined path through the constellation...
+                </p>
+              </div>
+              <p className="text-[10px] uppercase tracking-[0.22em] text-slate-400 sm:text-xs">
+                {visualizationMode}
               </p>
             </div>
-            <p className="text-[10px] uppercase tracking-[0.22em] text-slate-400 sm:text-xs">
-              {visualizationMode}
-            </p>
           </div>
+        </>
+      )}
+
+      {/* Compass navigation indicator */}
+      {focusNodeId && (
+        <div className="absolute top-6 right-6 z-20 flex flex-col items-center gap-2">
+          <div className="relative h-16 w-16 rounded-full border-2 border-sky-300/30 bg-slate-950/80 backdrop-blur-sm">
+            <div className="absolute inset-0 flex items-center justify-center">
+              <svg width="40" height="40" viewBox="0 0 40 40" className="animate-pulse">
+                <circle cx="20" cy="20" r="2" fill="#7dd3fc" />
+                <path d="M20 8 L20 12" stroke="#7dd3fc" strokeWidth="2" strokeLinecap="round" />
+                <path d="M20 28 L20 32" stroke="#94a3b8" strokeWidth="1.5" strokeLinecap="round" />
+                <path d="M8 20 L12 20" stroke="#94a3b8" strokeWidth="1.5" strokeLinecap="round" />
+                <path d="M28 20 L32 20" stroke="#94a3b8" strokeWidth="1.5" strokeLinecap="round" />
+                <text x="20" y="6" textAnchor="middle" fill="#7dd3fc" fontSize="8" fontWeight="600">N</text>
+              </svg>
+            </div>
+          </div>
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-sky-300">Navigate</p>
         </div>
       )}
     </div>
