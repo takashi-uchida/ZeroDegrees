@@ -12,7 +12,7 @@ export default function ConstellationParticles({ count = 12 }: { count?: number 
         
         return (
           <div
-            key={i}
+            key={`constellation-particle-${i}`}
             className="absolute rounded-full bg-sky-300"
             style={{
               left: `${left}%`,
