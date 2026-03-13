@@ -1,13 +1,17 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { MutableRefObject, useCallback, useEffect, useRef, useState } from 'react';
 import * as d3 from 'd3';
 import { Edge, Node } from '@/types/graph';
 import { SearchState } from '@/types/search';
 import { VisualizationMode } from '@/types/ui';
-import { useAccessibility } from './AccessibilityProvider';
+import { updateOrchestrator } from '@/services/updateOrchestrator';
+import { usePathAnimation } from '@/hooks/usePathAnimation';
+import SearchStatus from './SearchStatus';
 
-interface SimulationNode extends d3.SimulationNodeDatum, Node {}
+interface SimulationNode extends d3.SimulationNodeDatum, Node {
+  isNew?: boolean;
+}
 
 interface SimulationLink extends d3.SimulationLinkDatum<SimulationNode> {
   id: string;
@@ -16,6 +20,7 @@ interface SimulationLink extends d3.SimulationLinkDatum<SimulationNode> {
   strength: number;
   type: Edge['type'];
   metadata: Edge['metadata'];
+  isNew?: boolean;
 }
 
 interface GraphCanvasProps {
@@ -87,15 +92,115 @@ export default function GraphCanvas({
 }: GraphCanvasProps) {
   const svgRef = useRef<SVGSVGElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const liveNodesRef = useRef<Node[]>(nodes);
+  const liveEdgesRef = useRef<Edge[]>(edges);
+  const pendingEdgesRef = useRef<Edge[]>([]);
+  const nodeAnimationTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+  const edgeAnimationTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   const [useCanvas, setUseCanvas] = useState(false);
   const [transform, setTransform] = useState({ x: 0, y: 0, k: 1 });
-  const { reducedMotion } = useAccessibility();
+  const [liveNodes, setLiveNodes] = useState<Node[]>(nodes);
+  const [liveEdges, setLiveEdges] = useState<Edge[]>(edges);
   const [isMobile, setIsMobile] = useState(false);
   const zoomBehaviorRef = useRef<d3.ZoomBehavior<any, unknown> | null>(null);
+  const animationState = usePathAnimation(activePathNodeIds, activePathEdgeIds, searchState);
 
-  const pathNodeSet = new Set(activePathNodeIds);
-  const pathEdgeSet = new Set(activePathEdgeIds);
-  const maxDistance = Math.max(...nodes.map((node) => node.distance), 1);
+  const clearAnimationTimer = useCallback(
+    (timersRef: MutableRefObject<Map<string, ReturnType<typeof setTimeout>>>, id: string) => {
+      const timer = timersRef.current.get(id);
+      if (timer) {
+        clearTimeout(timer);
+        timersRef.current.delete(id);
+      }
+    },
+    []
+  );
+
+  const scheduleNodeAnimationReset = useCallback(
+    (nodeId: string) => {
+      clearAnimationTimer(nodeAnimationTimersRef, nodeId);
+      const timer = setTimeout(() => {
+        const nextNodes = liveNodesRef.current.map((node) =>
+          node.id === nodeId ? { ...node, isNew: false } : node
+        );
+        liveNodesRef.current = nextNodes;
+        setLiveNodes(nextNodes);
+        nodeAnimationTimersRef.current.delete(nodeId);
+      }, 400);
+
+      nodeAnimationTimersRef.current.set(nodeId, timer);
+    },
+    [clearAnimationTimer]
+  );
+
+  const scheduleEdgeAnimationReset = useCallback(
+    (edgeId: string) => {
+      clearAnimationTimer(edgeAnimationTimersRef, edgeId);
+      const timer = setTimeout(() => {
+        const nextEdges = liveEdgesRef.current.map((edge) =>
+          edge.id === edgeId ? { ...edge, isNew: false } : edge
+        );
+        liveEdgesRef.current = nextEdges;
+        setLiveEdges(nextEdges);
+        edgeAnimationTimersRef.current.delete(edgeId);
+      }, 300);
+
+      edgeAnimationTimersRef.current.set(edgeId, timer);
+    },
+    [clearAnimationTimer]
+  );
+
+  const addLiveNode = useCallback(
+    (node: Node) => {
+      if (liveNodesRef.current.some((existingNode) => existingNode.id === node.id)) {
+        return;
+      }
+
+      const nextNodes = [...liveNodesRef.current, { ...node, isNew: true }];
+      liveNodesRef.current = nextNodes;
+      setLiveNodes(nextNodes);
+      scheduleNodeAnimationReset(node.id);
+    },
+    [scheduleNodeAnimationReset]
+  );
+
+  const addLiveEdge = useCallback(
+    (edge: Edge) => {
+      if (liveEdgesRef.current.some((existingEdge) => existingEdge.id === edge.id)) {
+        return;
+      }
+
+      const nextEdges = [...liveEdgesRef.current, { ...edge, isNew: true }];
+      liveEdgesRef.current = nextEdges;
+      setLiveEdges(nextEdges);
+      scheduleEdgeAnimationReset(edge.id);
+    },
+    [scheduleEdgeAnimationReset]
+  );
+
+  const flushPendingEdges = useCallback(() => {
+    if (!pendingEdgesRef.current.length) {
+      return;
+    }
+
+    const availableNodeIds = new Set(liveNodesRef.current.map((node) => node.id));
+    const readyEdges: Edge[] = [];
+
+    pendingEdgesRef.current = pendingEdgesRef.current.filter((edge) => {
+      const isReady =
+        availableNodeIds.has(edge.source) && availableNodeIds.has(edge.target);
+
+      if (isReady) {
+        readyEdges.push(edge);
+      }
+
+      return !isReady;
+    });
+
+    readyEdges.forEach((edge) => {
+      addLiveEdge(edge);
+    });
+  }, [addLiveEdge]);
 
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 768);
@@ -103,6 +208,64 @@ export default function GraphCanvas({
     window.addEventListener('resize', checkMobile);
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
+
+  useEffect(() => {
+    liveNodesRef.current = nodes;
+    liveEdgesRef.current = edges;
+    setLiveNodes(nodes);
+    setLiveEdges(edges);
+  }, [nodes, edges]);
+
+  useEffect(() => {
+    liveNodesRef.current = liveNodes;
+  }, [liveNodes]);
+
+  useEffect(() => {
+    liveEdgesRef.current = liveEdges;
+  }, [liveEdges]);
+
+  useEffect(() => {
+    flushPendingEdges();
+  }, [liveNodes, flushPendingEdges]);
+
+  useEffect(() => {
+    const handleNodeDiscovered = (node: Node) => {
+      addLiveNode(node);
+    };
+
+    const handleEdgeExplored = (edge: Edge) => {
+      const availableNodeIds = new Set(liveNodesRef.current.map((node) => node.id));
+      const canRenderEdge =
+        availableNodeIds.has(edge.source) && availableNodeIds.has(edge.target);
+
+      if (!canRenderEdge) {
+        if (!pendingEdgesRef.current.some((pendingEdge) => pendingEdge.id === edge.id)) {
+          pendingEdgesRef.current = [...pendingEdgesRef.current, edge];
+        }
+        return;
+      }
+
+      addLiveEdge(edge);
+    };
+
+    const unsubscribe = updateOrchestrator.on({
+      onNodeDiscovered: handleNodeDiscovered,
+      onEdgeExplored: handleEdgeExplored,
+    });
+
+    return () => {
+      unsubscribe();
+      pendingEdgesRef.current = [];
+      nodeAnimationTimersRef.current.forEach((timer) => clearTimeout(timer));
+      edgeAnimationTimersRef.current.forEach((timer) => clearTimeout(timer));
+      nodeAnimationTimersRef.current.clear();
+      edgeAnimationTimersRef.current.clear();
+    };
+  }, [addLiveEdge, addLiveNode]);
+
+  const pathNodeSet = new Set(activePathNodeIds);
+  const pathEdgeSet = new Set(activePathEdgeIds);
+  const maxDistance = Math.max(...liveNodes.map((node) => node.distance), 1);
 
   const handleZoomIn = () => {
     if (!zoomBehaviorRef.current) return;
@@ -130,7 +293,7 @@ export default function GraphCanvas({
 
   const getNeighborIds = (nodeId: string) => {
     const neighbors = new Set<string>();
-    edges.forEach((edge) => {
+    liveEdges.forEach((edge) => {
       if (edge.source === nodeId) {
         neighbors.add(edge.target);
       }
@@ -180,7 +343,7 @@ export default function GraphCanvas({
   // Keyboard navigation
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (nodes.length === 0) return;
+      if (liveNodes.length === 0) return;
 
       if (e.key === 'Escape' && selectedNodeId) {
         e.preventDefault();
@@ -189,24 +352,24 @@ export default function GraphCanvas({
 
       if (e.key === 'Tab' && selectedNodeId) {
         e.preventDefault();
-        const currentIndex = nodes.findIndex(n => n.id === selectedNodeId);
-        const nextIndex = e.shiftKey 
-          ? (currentIndex - 1 + nodes.length) % nodes.length
-          : (currentIndex + 1) % nodes.length;
-        onNodeClick?.(nodes[nextIndex].id);
+        const currentIndex = liveNodes.findIndex((node) => node.id === selectedNodeId);
+        const nextIndex = e.shiftKey
+          ? (currentIndex - 1 + liveNodes.length) % liveNodes.length
+          : (currentIndex + 1) % liveNodes.length;
+        onNodeClick?.(liveNodes[nextIndex].id);
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [nodes, selectedNodeId, onNodeClick]);
+  }, [liveNodes, selectedNodeId, onNodeClick]);
 
   useEffect(() => {
-    setUseCanvas(nodes.length > CANVAS_THRESHOLD);
-  }, [nodes.length]);
+    setUseCanvas(liveNodes.length > CANVAS_THRESHOLD);
+  }, [liveNodes.length]);
 
   useEffect(() => {
-    if (!nodes.length) {
+    if (!liveNodes.length) {
       return;
     }
 
@@ -222,11 +385,14 @@ export default function GraphCanvas({
   }, [
     activePathEdgeIds.join(','),
     activePathNodeIds.join(','),
-    edges,
+    animationState.currentStep,
+    animationState.animatingNodeIds.size,
+    animationState.animatingEdgeIds.size,
+    liveEdges,
     focusNodeId,
     height,
     hoveredEdgeId,
-    nodes,
+    liveNodes,
     searchState,
     selectedNodeId,
     showDistanceMetrics,
@@ -241,8 +407,8 @@ export default function GraphCanvas({
     const svg = d3.select(svgRef.current);
     svg.selectAll('*').remove();
 
-    const nodesCopy: SimulationNode[] = nodes.map((node) => ({ ...node }));
-    const edgesCopy: SimulationLink[] = edges.map((edge) => ({ ...edge }));
+    const nodesCopy: SimulationNode[] = liveNodes.map((node) => ({ ...node }));
+    const edgesCopy: SimulationLink[] = liveEdges.map((edge) => ({ ...edge }));
 
     const layer = svg.append('g');
 
@@ -298,6 +464,7 @@ export default function GraphCanvas({
       .data([1, 2, 3, 4])
       .enter()
       .append('circle')
+      .attr('data-graph-role', 'ring')
       .attr('fill', 'none')
       .attr('stroke', '#334155')
       .attr('stroke-opacity', visualizationMode === 'concentric' ? 0.5 : 0)
@@ -311,12 +478,18 @@ export default function GraphCanvas({
       .data(edgesCopy)
       .enter()
       .append('line')
+      .attr('data-graph-role', 'edge')
+      .attr('data-edge-id', (edge) => edge.id)
       .attr('stroke', (edge) => {
         if (edge.id === hoveredEdgeId) return '#f8fafc';
         if (isEdgeHighlighted(edge)) return '#7dd3fc';
+        if (animationState.currentStep === -1 && animationState.animatingEdgeIds.has(edge.id)) {
+          return '#38bdf8';
+        }
         return '#334155';
       })
       .attr('stroke-opacity', (edge) => {
+        if (edge.isNew) return 0;
         if (visualizationMode === 'path' && pathEdgeSet.size > 0) {
           return pathEdgeSet.has(edge.id) ? 1 : 0.12;
         }
@@ -327,14 +500,31 @@ export default function GraphCanvas({
       })
       .attr('stroke-width', (edge) => {
         if (isEdgeHighlighted(edge)) return Math.max(2.5, edge.strength * 4.5);
+        if (animationState.currentStep === -1 && animationState.animatingEdgeIds.has(edge.id)) {
+          return Math.max(2, edge.strength * 3.5);
+        }
         return Math.max(1, edge.strength * 2.8);
       })
-      .attr('stroke-dasharray', (edge) =>
-        visualizationMode === 'path' && pathEdgeSet.has(edge.id) ? '0' : '0'
-      )
+      .attr('stroke-dasharray', (edge) => {
+        if (animationState.currentStep === -1 && animationState.animatingEdgeIds.has(edge.id)) {
+          return '8 4';
+        }
+        return '0';
+      })
       .style('cursor', 'pointer')
       .on('mouseenter', (_event, edge) => onEdgeHover?.(edge.id))
-      .on('mouseleave', () => onEdgeHover?.(undefined));
+      .on('mouseleave', () => onEdgeHover?.(undefined))
+      .transition()
+      .duration(300)
+      .attr('stroke-opacity', (edge) => {
+        if (visualizationMode === 'path' && pathEdgeSet.size > 0) {
+          return pathEdgeSet.has(edge.id) ? 1 : 0.12;
+        }
+        if (selectedNodeId || pathEdgeSet.size > 0) {
+          return isEdgeHighlighted(edge) ? 0.95 : 0.2;
+        }
+        return 0.55;
+      });
 
     const node = layer
       .append('g')
@@ -364,11 +554,13 @@ export default function GraphCanvas({
 
     node
       .append('circle')
+      .attr('data-graph-role', 'node')
+      .attr('data-node-id', (graphNode) => graphNode.id)
       .attr('r', (graphNode) => {
         const baseRadius = isMobile ? NODE_RADIUS * 1.4 : NODE_RADIUS;
         if (graphNode.id === selectedNodeId) return baseRadius * 1.7;
         if (pathNodeSet.has(graphNode.id)) return baseRadius * 1.35;
-        return baseRadius;
+        return graphNode.isNew ? 0 : baseRadius;
       })
       .attr('fill', (graphNode) => getNodeFill(graphNode))
       .attr('fill-opacity', (graphNode) => {
@@ -376,7 +568,7 @@ export default function GraphCanvas({
         if (visualizationMode === 'path' && pathNodeSet.size > 0 && !pathNodeSet.has(graphNode.id)) {
           return 0.28;
         }
-        return 1;
+        return graphNode.isNew ? 0 : 1;
       })
       .attr('stroke', (graphNode) => {
         if (graphNode.id === selectedNodeId) return '#f8fafc';
@@ -396,11 +588,32 @@ export default function GraphCanvas({
         if (pathNodeSet.has(graphNode.id)) {
           return 'drop-shadow(0 0 10px rgba(148, 163, 184, 0.45))';
         }
+        if (animationState.currentStep === -1 && animationState.animatingNodeIds.has(graphNode.id)) {
+          return 'drop-shadow(0 0 12px rgba(125, 211, 252, 0.6))';
+        }
         return 'none';
       })
       .on('click', (event, graphNode) => {
         event.stopPropagation();
         onNodeClick?.(graphNode.id);
+      })
+      .transition()
+      .duration(400)
+      .attr('r', (graphNode) => {
+        const baseRadius = isMobile ? NODE_RADIUS * 1.4 : NODE_RADIUS;
+        if (graphNode.id === selectedNodeId) return baseRadius * 1.7;
+        if (pathNodeSet.has(graphNode.id)) return baseRadius * 1.35;
+        if (animationState.currentStep === -1 && animationState.animatingNodeIds.has(graphNode.id)) {
+          return baseRadius * 1.2;
+        }
+        return baseRadius;
+      })
+      .attr('fill-opacity', (graphNode) => {
+        if (selectedNodeId && !isNodeHighlighted(graphNode.id)) return 0.25;
+        if (visualizationMode === 'path' && pathNodeSet.size > 0 && !pathNodeSet.has(graphNode.id)) {
+          return 0.28;
+        }
+        return 1;
       });
 
     node
@@ -468,8 +681,8 @@ export default function GraphCanvas({
     canvas.width = width;
     canvas.height = height;
 
-    const nodesCopy: SimulationNode[] = nodes.map((node) => ({ ...node }));
-    const edgesCopy: SimulationLink[] = edges.map((edge) => ({ ...edge }));
+    const nodesCopy: SimulationNode[] = liveNodes.map((node) => ({ ...node }));
+    const edgesCopy: SimulationLink[] = liveEdges.map((edge) => ({ ...edge }));
 
     const simulation = d3
       .forceSimulation<SimulationNode>(nodesCopy)
@@ -557,12 +770,13 @@ export default function GraphCanvas({
       nodesCopy.forEach((graphNode: SimulationNode) => {
         const nodeX = graphNode.x ?? 0;
         const nodeY = graphNode.y ?? 0;
+        const baseRadius = isMobile ? NODE_RADIUS * 1.4 : NODE_RADIUS;
         const radius =
           graphNode.id === selectedNodeId
-            ? NODE_RADIUS * 1.7
+            ? baseRadius * 1.7
             : pathNodeSet.has(graphNode.id)
-              ? NODE_RADIUS * 1.35
-              : NODE_RADIUS;
+              ? baseRadius * 1.35
+              : baseRadius;
 
         context.beginPath();
         context.fillStyle = getNodeFill(graphNode);
@@ -608,9 +822,10 @@ export default function GraphCanvas({
       const y = (event.clientY - rect.top - transform.y) / transform.k;
 
       const clickedNode = nodesCopy.find((graphNode: SimulationNode) => {
+        const baseRadius = isMobile ? NODE_RADIUS * 1.4 : NODE_RADIUS;
         const dx = x - (graphNode.x ?? 0);
         const dy = y - (graphNode.y ?? 0);
-        return Math.sqrt(dx * dx + dy * dy) <= NODE_RADIUS * 1.8;
+        return Math.sqrt(dx * dx + dy * dy) <= baseRadius * 1.8;
       });
 
       if (clickedNode) {
@@ -631,7 +846,7 @@ export default function GraphCanvas({
       className="relative overflow-hidden rounded-2xl border border-white/10 bg-[#07111F] sm:rounded-[28px]"
       style={{ width, height }}
       role="img"
-      aria-label={`Graph visualization showing ${nodes.length} nodes and ${edges.length} connections. ${selectedNodeId ? `Node ${nodes.find(n => n.id === selectedNodeId)?.label} is selected.` : ''}`}
+      aria-label={`Graph visualization showing ${liveNodes.length} nodes and ${liveEdges.length} connections. ${selectedNodeId ? `Node ${liveNodes.find((node) => node.id === selectedNodeId)?.label} is selected.` : ''}`}
     >
       <div
         aria-hidden="true"
@@ -693,31 +908,7 @@ export default function GraphCanvas({
         </div>
       )}
 
-      {searchState === 'searching' && (
-<<<<<<< HEAD
-        <div 
-          className="absolute inset-x-3 bottom-3 z-20 rounded-full border border-sky-300/20 bg-slate-950/80 px-4 py-2.5 backdrop-blur-sm sm:inset-x-6 sm:bottom-6 sm:px-5 sm:py-3"
-          role="status"
-          aria-live="polite"
-        >
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-            <div className="flex items-center gap-2 sm:gap-3">
-              <span className="relative flex h-3 w-3 shrink-0" aria-hidden="true">
-                {!reducedMotion && (
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-sky-300 opacity-75" />
-                )}
-                <span className="relative inline-flex h-3 w-3 rounded-full bg-sky-300" />
-              </span>
-              <p className="text-xs font-medium text-slate-100 sm:text-sm">
-                Tracing the shortest trusted route...
-              </p>
-            </div>
-            <p className="text-[10px] uppercase tracking-[0.22em] text-slate-400 sm:text-xs">
-              {visualizationMode}
-            </p>
-          </div>
-        </div>
-      )}
+      <SearchStatus searchState={searchState} visualizationMode={visualizationMode} />
     </div>
   );
 }

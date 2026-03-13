@@ -185,7 +185,6 @@ export default function SearchInput({
         <div className="grid gap-3 sm:grid-cols-2" role="radiogroup">
           {TARGET_OPTIONS.map((option) => {
             const isActive = option.value === targetType;
->>>>>>> origin/main
 
             return (
               <button

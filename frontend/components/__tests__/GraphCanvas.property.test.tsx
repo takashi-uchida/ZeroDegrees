@@ -142,7 +142,7 @@ describe('GraphCanvas Property Tests', () => {
             const startTime = performance.now();
 
             // Find the node element - D3 creates g elements for nodes
-            const nodeElements = container.querySelectorAll('g > circle');
+            const nodeElements = container.querySelectorAll('circle[data-graph-role="node"]');
             if (nodeElements.length > 0) {
               const nodeElement = nodeElements[nodeIndexToClick];
               fireEvent.click(nodeElement);
@@ -192,7 +192,7 @@ describe('GraphCanvas Property Tests', () => {
             const startTime = performance.now();
 
             // Find edge elements - D3 creates line elements for edges
-            const edgeElements = container.querySelectorAll('line');
+            const edgeElements = container.querySelectorAll('line[data-graph-role="edge"]');
             if (edgeElements.length > 0 && edgeIndexToHover < edgeElements.length) {
               const edgeElement = edgeElements[edgeIndexToHover];
               fireEvent.mouseEnter(edgeElement);
