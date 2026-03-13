@@ -15,7 +15,7 @@ export default function KeyboardShortcuts() {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === '?' && !e.shiftKey) {
+      if (e.key === '?' && e.shiftKey) {
         e.preventDefault();
         setIsOpen(prev => !prev);
       }
